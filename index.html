@@ -276,6 +276,8 @@
     .share-btn {
       background: rgba(13,148,136,0.18);
       border-color: rgba(13,148,136,0.45);
+      padding: 0.45rem 0.65rem;
+      display: inline-flex; align-items: center; justify-content: center;
     }
     .share-btn:hover:not(:disabled) { background: rgba(13,148,136,0.35); }
 
@@ -322,7 +324,7 @@
       <button class="nav-btn" id="btn-prev">← Previous</button>
       <span class="nav-counter" id="nav-counter"></span>
       <button class="nav-btn" id="btn-next">Next →</button>
-      <button class="nav-btn share-btn" id="btn-share" title="Copy link to this stay">⬆ Share</button>
+      <button class="nav-btn share-btn" id="btn-share" aria-label="Share this stay" title="Share this stay"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>
     </div>
   </div>
 
@@ -1116,8 +1118,11 @@
         const stayParam = urlParams.get('stay');
         let startIdx = nextStayIdx;
         if (stayParam) {
-          const idx = allStays.findIndex(s => toISO(s.from) === stayParam);
-          if (idx !== -1) startIdx = idx;
+          const paramDate = parseDateVal(stayParam);
+          if (paramDate) {
+            const idx = allStays.findIndex(s => s.from <= paramDate && paramDate < s.until);
+            if (idx !== -1) startIdx = idx;
+          }
         }
         showStay(startIdx);
 
