@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Todo</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(160deg, #0f0c29 0%, #302b63 50%, #1a1040 100%);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2rem 1rem 4rem;
+      color: #1a1a2e;
+    }
+
+    #app { width: 100%; max-width: 820px; }
+
+    /* ── Page title ── */
+    .page-title {
+      text-align: center;
+      color: #fff;
+      margin-bottom: 2rem;
+    }
+    .page-title h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.25rem;
+    }
+    .page-title p {
+      font-size: 0.85rem;
+      opacity: 0.55;
+    }
+
+    /* ── Loading ── */
+    .loading {
+      text-align: center;
+      color: rgba(255,255,255,0.8);
+      padding: 5rem 2rem;
+    }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 3px solid rgba(255,255,255,0.25);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading p { font-size: 0.9rem; opacity: 0.7; }
+
+    /* ── Error ── */
+    .error-box {
+      background: #fee2e2; border: 1px solid #fca5a5;
+      border-radius: 14px; padding: 1.5rem;
+      color: #991b1b; text-align: center;
+    }
+    .error-box strong { display: block; margin-bottom: 0.4rem; }
+
+    /* ── Status section card ── */
+    .status-section {
+      background: #fff;
+      border-radius: 22px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    .status-section:last-child { margin-bottom: 0; }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1.1rem 1.5rem;
+      border-bottom: 2px solid #f1f5f9;
+      cursor: pointer;
+      user-select: none;
+    }
+    .section-header:hover { background: #fafbfc; }
+
+    .section-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+    .sec-todo    .section-icon { background: #f1f5f9; }
+    .sec-inprog  .section-icon { background: #dbeafe; }
+    .sec-almost  .section-icon { background: #fef9c3; }
+    .sec-done    .section-icon { background: #dcfce7; }
+
+    .section-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1e293b;
+      flex: 1;
+    }
+    .section-count {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.2rem 0.6rem;
+      border-radius: 20px;
+      min-width: 26px;
+      text-align: center;
+    }
+    .sec-todo   .section-count { background: #f1f5f9; color: #64748b; }
+    .sec-inprog .section-count { background: #dbeafe; color: #1e40af; }
+    .sec-almost .section-count { background: #fef9c3; color: #854d0e; }
+    .sec-done   .section-count { background: #dcfce7; color: #166534; }
+
+    .toggle-chevron {
+      color: #94a3b8;
+      font-size: 0.85rem;
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+    .collapsed .toggle-chevron { transform: rotate(-90deg); }
+
+    .section-body { padding: 0 1.5rem 1.25rem; }
+    .collapsed .section-body { display: none; }
+
+    /* ── Owner group ── */
+    .owner-group { margin-top: 1.1rem; }
+    .owner-group:first-child { margin-top: 1rem; }
+
+    .owner-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 0.28rem 0.7rem;
+      border-radius: 20px;
+      border: 1px solid;
+      margin-bottom: 0.6rem;
+    }
+    .owner-eule  { background: #dcfce7; border-color: #86efac; color: #166534; }
+    .owner-fuchs { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+    .owner-team  { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
+    .owner-other { background: #f1f5f9; border-color: #cbd5e1; color: #475569; }
+
+    /* ── Header label (sub-group context) ── */
+    .header-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin: 0.85rem 0 0.35rem;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .header-label::before {
+      content: '';
+      display: inline-block;
+      width: 12px;
+      height: 1px;
+      background: #cbd5e1;
+      flex-shrink: 0;
+    }
+    .header-label .crumb-sep {
+      color: #cbd5e1;
+      margin: 0 0.15rem;
+    }
+
+    /* ── Task item ── */
+    .task-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      padding: 0.6rem 0.75rem;
+      border-radius: 10px;
+      margin-bottom: 0.35rem;
+      border: 1px solid #f1f5f9;
+      background: #fafbfc;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .task-item:last-child { margin-bottom: 0; }
+    .task-item:hover { background: #f8fafc; border-color: #e2e8f0; }
+
+    /* Deadline urgency left bar */
+    .task-item.dl-asap        { border-left: 3px solid #ef4444; }
+    .task-item.dl-vor-umzug   { border-left: 3px solid #f97316; }
+    .task-item.dl-kurz-umzug  { border-left: 3px solid #eab308; }
+    .task-item.dl-spat        { border-left: 3px solid #22c55e; }
+    .task-item.dl-in-d        { border-left: 3px solid #0d9488; }
+    .task-item.dl-none        { border-left: 3px solid transparent; }
+
+    .task-check {
+      width: 16px; height: 16px;
+      border-radius: 4px;
+      border: 2px solid #cbd5e1;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .task-item.done .task-check {
+      background: #22c55e;
+      border-color: #22c55e;
+      position: relative;
+    }
+    .task-item.done .task-check::after {
+      content: '✓';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 900;
+      line-height: 1;
+      padding-top: 1px;
+    }
+
+    .task-content { flex: 1; min-width: 0; }
+
+    .task-name {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #1e293b;
+      line-height: 1.4;
+    }
+    .task-item.done .task-name {
+      text-decoration: line-through;
+      color: #94a3b8;
+    }
+
+    .task-details {
+      font-size: 0.78rem;
+      color: #64748b;
+      margin-top: 0.2rem;
+      line-height: 1.45;
+    }
+    .task-item.done .task-details { color: #b0bec5; }
+
+    .task-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    /* ── Deadline badge ── */
+    .deadline-badge {
+      font-size: 0.62rem;
+      font-weight: 700;
+      padding: 0.18rem 0.5rem;
+      border-radius: 5px;
+      border: 1px solid;
+      white-space: nowrap;
+    }
+    .dl-badge-asap       { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+    .dl-badge-vor-umzug  { background: #ffedd5; border-color: #fdba74; color: #9a3412; }
+    .dl-badge-kurz-umzug { background: #fef9c3; border-color: #fde047; color: #854d0e; }
+    .dl-badge-spat       { background: #dcfce7; border-color: #86efac; color: #166534; }
+    .dl-badge-in-d       { background: #ccfbf1; border-color: #5eead4; color: #0f5c53; }
+
+    /* ── Empty state ── */
+    .empty-section {
+      text-align: center;
+      padding: 1.5rem 1rem;
+      color: #94a3b8;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="page-title">
+    <h1>Todo</h1>
+    <p id="subtitle">Wird geladen…</p>
+  </div>
+  <div id="content">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Tabelle wird geladen…</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ─────────────────────────────────────────────
+  // Config
+  // ─────────────────────────────────────────────
+  const SHEET_ID = '1cMlOR_Pu1sUHVmuXUA5CIYYx0zUc_2VzCwyZqWvRkMg';
+  const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
+
+  // Status sections in display order
+  const STATUS_SECTIONS = [
+    { key: 'todo',    label: 'To Do',       icon: '○', cls: 'sec-todo'   },
+    { key: 'inprog',  label: 'In progress', icon: '◑', cls: 'sec-inprog' },
+    { key: 'almost',  label: 'Almost done', icon: '◕', cls: 'sec-almost' },
+    { key: 'done',    label: 'Done',        icon: '●', cls: 'sec-done'   },
+  ];
+
+  // Normalise status string to section key
+  function normaliseStatus(s) {
+    if (!s) return null;
+    const l = s.trim().toLowerCase();
+    if (l === 'to do')        return 'todo';
+    if (l === 'in progress')  return 'inprog';
+    if (l === 'almost done')  return 'almost';
+    if (l === 'done')         return 'done';
+    return null;
+  }
+
+  // Owner display config
+  const OWNERS = {
+    eule:  { label: 'Eule',  cls: 'owner-eule',  order: 0 },
+    fuchs: { label: 'Fuchs', cls: 'owner-fuchs', order: 1 },
+    team:  { label: 'Team',  cls: 'owner-team',  order: 2 },
+  };
+  function ownerKey(s) {
+    if (!s) return null;
+    const l = s.trim().toLowerCase();
+    if (l === 'eule')  return 'eule';
+    if (l === 'fuchs') return 'fuchs';
+    if (l === 'team')  return 'team';
+    return null;
+  }
+
+  // Deadline config
+  const DEADLINES = {
+    'asap':            { label: 'ASAP',            barCls: 'dl-asap',       badgeCls: 'dl-badge-asap',       order: 0 },
+    'vor umzug':       { label: 'vor Umzug',       barCls: 'dl-vor-umzug',  badgeCls: 'dl-badge-vor-umzug',  order: 1 },
+    'kurz vor umzug':  { label: 'kurz vor Umzug',  barCls: 'dl-kurz-umzug', badgeCls: 'dl-badge-kurz-umzug', order: 2 },
+    'spät':            { label: 'spät',             barCls: 'dl-spat',       badgeCls: 'dl-badge-spat',       order: 3 },
+    'in d':            { label: 'in D.',            barCls: 'dl-in-d',       badgeCls: 'dl-badge-in-d',       order: 4 },
+  };
+  function deadlineKey(s) {
+    if (!s) return null;
+    return s.trim().toLowerCase();
+  }
+
+  // ─────────────────────────────────────────────
+  // Utilities
+  // ─────────────────────────────────────────────
+  function esc(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function leadingSpaces(str) {
+    if (!str) return 0;
+    const s = String(str);
+    return s.length - s.trimStart().length;
+  }
+
+  // ─────────────────────────────────────────────
+  // Fetch + parse sheet
+  // ─────────────────────────────────────────────
+  async function fetchTodos() {
+    const res = await fetch(GVIZ_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status} – Tabelle konnte nicht geladen werden`);
+    const text = await res.text();
+    const match = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?\s*$/);
+    if (!match) throw new Error('Ungültiges gviz-Format');
+    const table = JSON.parse(match[1]).table;
+
+    const rows = [];
+    for (let i = 0; i < table.rows.length; i++) {
+      const row = table.rows[i];
+      if (!row?.c) continue;
+      const c = row.c;
+      const g = (idx) => {
+        const cell = c[idx];
+        if (!cell) return '';
+        return cell.v != null ? String(cell.v) : '';
+      };
+      rows.push({
+        was:      g(0),
+        owner:    g(1).trim(),
+        status:   g(2).trim(),
+        deadline: g(3).trim(),
+        details:  g(4).trim(),
+        rawIndex: i,
+      });
+    }
+    return rows;
+  }
+
+  // ─────────────────────────────────────────────
+  // Parse hierarchy
+  // ─────────────────────────────────────────────
+
+  // A row is a "header" if it has no owner and no status
+  function isHeader(row) {
+    return !row.owner && !row.status;
+  }
+
+  // Get the ancestor header chain for a row at `index` in `rows`
+  // Returns array of trimmed header strings, outermost first
+  function headerChain(rows, index) {
+    const cur = rows[index];
+    const curSpaces = leadingSpaces(cur.was);
+    const chain = [];
+
+    let searchSpaces = curSpaces;
+    for (let i = index - 1; i >= 0; i--) {
+      const row = rows[i];
+      if (!isHeader(row)) continue;
+      const sp = leadingSpaces(row.was);
+      if (sp < searchSpaces) {
+        chain.unshift(row.was.trim());
+        searchSpaces = sp;
+        if (searchSpaces === 0) break;
+      }
+    }
+    return chain;
+  }
+
+  // ─────────────────────────────────────────────
+  // Build structured data
+  // ─────────────────────────────────────────────
+  function buildSections(rows) {
+    // sections: { todo: [...], inprog: [...], almost: [...], done: [...] }
+    const sections = { todo: [], inprog: [], almost: [], done: [] };
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (isHeader(row)) continue;  // skip pure headers
+
+      const sectionKey = normaliseStatus(row.status);
+      if (!sectionKey) continue;   // skip rows with unknown status
+
+      const chain = headerChain(rows, i);
+      const dk = deadlineKey(row.deadline);
+      const dl = DEADLINES[dk] ?? null;
+      const ok = ownerKey(row.owner);
+
+      sections[sectionKey].push({
+        was:       row.was.trim(),
+        ownerKey:  ok,
+        ownerLabel: ok ? OWNERS[ok].label : (row.owner || '—'),
+        ownerCls:  ok ? OWNERS[ok].cls : 'owner-other',
+        ownerOrder: ok != null ? OWNERS[ok].order : 99,
+        deadline:  dl,
+        details:   row.details,
+        headers:   chain,
+        done:      sectionKey === 'done',
+      });
+    }
+    return sections;
+  }
+
+  // ─────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────
+
+  function renderDeadlineBadge(dl) {
+    if (!dl) return '';
+    return `<span class="deadline-badge ${dl.badgeCls}">${esc(dl.label)}</span>`;
+  }
+
+  function renderTask(task) {
+    const barCls   = task.deadline ? task.deadline.barCls : 'dl-none';
+    const doneCls  = task.done ? ' done' : '';
+    const detailsHtml = task.details
+      ? `<div class="task-details">${esc(task.details)}</div>`
+      : '';
+    const badgeHtml = renderDeadlineBadge(task.deadline);
+
+    return `
+      <div class="task-item ${barCls}${doneCls}">
+        <div class="task-check"></div>
+        <div class="task-content">
+          <div class="task-name">${esc(task.was)}</div>
+          ${detailsHtml}
+        </div>
+        <div class="task-meta">${badgeHtml}</div>
+      </div>`;
+  }
+
+  function renderSection(sectionMeta, tasks) {
+    const count = tasks.length;
+
+    // Sort tasks by owner order, then original order preserved within each owner
+    const sorted = [...tasks].sort((a, b) => a.ownerOrder - b.ownerOrder);
+
+    // Group consecutive tasks with same owner (while preserving sort)
+    const ownerGroups = [];
+    let curGroup = null;
+    for (const task of sorted) {
+      const key = task.ownerKey ?? '__none__';
+      if (!curGroup || curGroup.key !== key) {
+        curGroup = { key, ownerCls: task.ownerCls, ownerLabel: task.ownerLabel, tasks: [] };
+        ownerGroups.push(curGroup);
+      }
+      curGroup.tasks.push(task);
+    }
+
+    let bodyHtml = '';
+    if (count === 0) {
+      bodyHtml = '<div class="empty-section">Keine Einträge</div>';
+    } else {
+      for (const group of ownerGroups) {
+        // Render owner chip
+        const ownerEmoji = group.key === 'eule' ? '🦉' : group.key === 'fuchs' ? '🦊' : group.key === 'team' ? '👥' : '👤';
+        bodyHtml += `<div class="owner-group">
+          <div class="owner-label ${group.ownerCls}">${ownerEmoji} ${esc(group.ownerLabel)}</div>`;
+
+        // Group tasks by their header chain (as a string key) to show header labels
+        // We render tasks in order but insert a header label when the chain changes
+        let lastChainKey = null;
+        for (const task of group.tasks) {
+          const chainKey = task.headers.join(' › ');
+          if (chainKey !== lastChainKey) {
+            lastChainKey = chainKey;
+            if (chainKey) {
+              const crumbs = task.headers.map(esc).join('<span class="crumb-sep">›</span>');
+              bodyHtml += `<div class="header-label">${crumbs}</div>`;
+            }
+          }
+          bodyHtml += renderTask(task);
+        }
+
+        bodyHtml += `</div>`; // owner-group
+      }
+    }
+
+    return `
+      <div class="status-section ${sectionMeta.cls}" id="sec-${sectionMeta.key}">
+        <div class="section-header" onclick="toggleSection('${sectionMeta.key}')">
+          <div class="section-icon">${sectionMeta.icon}</div>
+          <div class="section-title">${esc(sectionMeta.label)}</div>
+          <div class="section-count">${count}</div>
+          <div class="toggle-chevron">▾</div>
+        </div>
+        <div class="section-body">
+          ${bodyHtml}
+        </div>
+      </div>`;
+  }
+
+  function toggleSection(key) {
+    const el = document.getElementById(`sec-${key}`);
+    if (el) el.classList.toggle('collapsed');
+  }
+
+  // ─────────────────────────────────────────────
+  // Init
+  // ─────────────────────────────────────────────
+  async function init() {
+    try {
+      const rows = await fetchTodos();
+      const sections = buildSections(rows);
+
+      const totalTasks = Object.values(sections).reduce((s, arr) => s + arr.length, 0);
+      const doneTasks  = sections.done.length;
+      document.getElementById('subtitle').textContent =
+        `${totalTasks} Aufgaben · ${doneTasks} erledigt`;
+
+      let html = '';
+      for (const meta of STATUS_SECTIONS) {
+        html += renderSection(meta, sections[meta.key]);
+      }
+      document.getElementById('content').innerHTML = html;
+
+      // Collapse "Done" by default if it has entries
+      if (sections.done.length > 0) {
+        document.getElementById('sec-done')?.classList.add('collapsed');
+      }
+    } catch (err) {
+      document.getElementById('content').innerHTML = `
+        <div class="error-box">
+          <strong>Fehler beim Laden</strong>
+          ${esc(err.message)}
+        </div>`;
+      document.getElementById('subtitle').textContent = '';
+      console.error(err);
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>
