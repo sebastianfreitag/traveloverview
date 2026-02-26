@@ -183,10 +183,11 @@
       margin-bottom: 0.35rem;
       border: 1px solid #f1f5f9;
       background: #fafbfc;
-      transition: background 0.15s, border-color 0.15s;
+      transition: background 0.15s, border-color 0.15s, opacity 0.2s;
     }
     .task-item:last-child { margin-bottom: 0; }
     .task-item:hover { background: #f8fafc; border-color: #e2e8f0; }
+    .task-item.pending { opacity: 0.5; pointer-events: none; }
 
     /* Deadline urgency left bar */
     .task-item.dl-asap        { border-left: 3px solid #ef4444; }
@@ -196,19 +197,36 @@
     .task-item.dl-in-d        { border-left: 3px solid #0d9488; }
     .task-item.dl-none        { border-left: 3px solid transparent; }
 
+    /* ── Checkbox ── */
     .task-check {
-      width: 16px; height: 16px;
-      border-radius: 4px;
+      width: 18px; height: 18px;
+      border-radius: 50%;
       border: 2px solid #cbd5e1;
       flex-shrink: 0;
-      margin-top: 2px;
-    }
-    .task-item.done .task-check {
-      background: #22c55e;
-      border-color: #22c55e;
+      margin-top: 1px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
       position: relative;
     }
-    .task-item.done .task-check::after {
+    .task-check:hover { border-color: #94a3b8; }
+
+    /* In progress: blue ring with small center dot */
+    .task-item.st-inprog .task-check {
+      border-color: #3b82f6;
+      box-shadow: inset 0 0 0 4px #fff, inset 0 0 0 7px #3b82f6;
+    }
+    /* Almost done: amber, mostly filled */
+    .task-item.st-almost .task-check {
+      border-color: #f59e0b;
+      box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 8px #f59e0b;
+    }
+    /* Done: green filled with checkmark */
+    .task-item.st-done .task-check {
+      background: #22c55e;
+      border-color: #22c55e;
+      box-shadow: none;
+    }
+    .task-item.st-done .task-check::after {
       content: '✓';
       position: absolute;
       inset: 0;
@@ -219,7 +237,6 @@
       font-size: 10px;
       font-weight: 900;
       line-height: 1;
-      padding-top: 1px;
     }
 
     .task-content { flex: 1; min-width: 0; }
@@ -230,7 +247,7 @@
       color: #1e293b;
       line-height: 1.4;
     }
-    .task-item.done .task-name {
+    .task-item.st-done .task-name {
       text-decoration: line-through;
       color: #94a3b8;
     }
@@ -241,7 +258,7 @@
       margin-top: 0.2rem;
       line-height: 1.45;
     }
-    .task-item.done .task-details { color: #b0bec5; }
+    .task-item.st-done .task-details { color: #b0bec5; }
 
     .task-meta {
       display: flex;
@@ -274,6 +291,41 @@
       color: #94a3b8;
       font-size: 0.85rem;
     }
+
+    /* ── Toast ── */
+    .toast-container {
+      position: fixed;
+      bottom: 1.75rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 0.5rem;
+      align-items: center;
+      z-index: 9999;
+      pointer-events: none;
+    }
+    .toast {
+      background: #1e293b;
+      color: #fff;
+      padding: 0.6rem 1.1rem;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+      white-space: nowrap;
+      max-width: min(420px, 90vw);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      animation: toast-in 0.22s ease;
+      transition: opacity 0.25s, transform 0.25s;
+    }
+    .toast.toast-error { background: #991b1b; }
+    .toast.toast-out { opacity: 0; transform: translateY(6px); }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
   </style>
 </head>
 <body>
@@ -289,23 +341,43 @@
     </div>
   </div>
 </div>
+<div class="toast-container" id="toasts"></div>
 
 <script>
   // ─────────────────────────────────────────────
-  // Config
+  // Config  ← paste your Apps Script URL here
   // ─────────────────────────────────────────────
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx9b2-RUE8Aoa_t5goHcEL0l1Ov0Pj1_1Cahc9mX5P8PCMQBxEtIBsoNV-32Urzq-aN/exec';
+
   const SHEET_ID = '1cMlOR_Pu1sUHVmuXUA5CIYYx0zUc_2VzCwyZqWvRkMg';
   const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
 
-  // Status sections in display order
+  // ─────────────────────────────────────────────
+  // Status config
+  // ─────────────────────────────────────────────
   const STATUS_SECTIONS = [
-    { key: 'todo',    label: 'To Do',       icon: '○', cls: 'sec-todo'   },
-    { key: 'inprog',  label: 'In progress', icon: '◑', cls: 'sec-inprog' },
-    { key: 'almost',  label: 'Almost done', icon: '◕', cls: 'sec-almost' },
-    { key: 'done',    label: 'Done',        icon: '●', cls: 'sec-done'   },
+    { key: 'todo',   label: 'To Do',       icon: '○', cls: 'sec-todo'   },
+    { key: 'inprog', label: 'In progress', icon: '◑', cls: 'sec-inprog' },
+    { key: 'almost', label: 'Almost done', icon: '◕', cls: 'sec-almost' },
+    { key: 'done',   label: 'Done',        icon: '●', cls: 'sec-done'   },
   ];
 
-  // Normalise status string to section key
+  // What value gets written to the sheet for each status key
+  const STATUS_SHEET_VALUE = {
+    todo:   'To Do',
+    inprog: 'In progress',
+    almost: 'Almost done',
+    done:   'Done',
+  };
+
+  // Click cycles status forward
+  const STATUS_CYCLE = {
+    todo:   'inprog',
+    inprog: 'done',
+    almost: 'done',
+    done:   'todo',
+  };
+
   function normaliseStatus(s) {
     if (!s) return null;
     const l = s.trim().toLowerCase();
@@ -316,7 +388,9 @@
     return null;
   }
 
-  // Owner display config
+  // ─────────────────────────────────────────────
+  // Owner config
+  // ─────────────────────────────────────────────
   const OWNERS = {
     eule:  { label: 'Eule',  cls: 'owner-eule',  order: 0 },
     fuchs: { label: 'Fuchs', cls: 'owner-fuchs', order: 1 },
@@ -331,13 +405,15 @@
     return null;
   }
 
+  // ─────────────────────────────────────────────
   // Deadline config
+  // ─────────────────────────────────────────────
   const DEADLINES = {
-    'asap':            { label: 'ASAP',            barCls: 'dl-asap',       badgeCls: 'dl-badge-asap',       order: 0 },
-    'vor umzug':       { label: 'vor Umzug',       barCls: 'dl-vor-umzug',  badgeCls: 'dl-badge-vor-umzug',  order: 1 },
-    'kurz vor umzug':  { label: 'kurz vor Umzug',  barCls: 'dl-kurz-umzug', badgeCls: 'dl-badge-kurz-umzug', order: 2 },
-    'spät':            { label: 'spät',             barCls: 'dl-spat',       badgeCls: 'dl-badge-spat',       order: 3 },
-    'in d':            { label: 'in D.',            barCls: 'dl-in-d',       badgeCls: 'dl-badge-in-d',       order: 4 },
+    'asap':           { label: 'ASAP',           barCls: 'dl-asap',       badgeCls: 'dl-badge-asap',       order: 0 },
+    'vor umzug':      { label: 'vor Umzug',      barCls: 'dl-vor-umzug',  badgeCls: 'dl-badge-vor-umzug',  order: 1 },
+    'kurz vor umzug': { label: 'kurz vor Umzug', barCls: 'dl-kurz-umzug', badgeCls: 'dl-badge-kurz-umzug', order: 2 },
+    'spät':           { label: 'spät',           barCls: 'dl-spat',       badgeCls: 'dl-badge-spat',       order: 3 },
+    'in d':           { label: 'in D.',          barCls: 'dl-in-d',       badgeCls: 'dl-badge-in-d',       order: 4 },
   };
   function deadlineKey(s) {
     if (!s) return null;
@@ -359,6 +435,77 @@
     if (!str) return 0;
     const s = String(str);
     return s.length - s.trimStart().length;
+  }
+
+  // ─────────────────────────────────────────────
+  // State
+  // ─────────────────────────────────────────────
+  let allRows = [];
+  const collapsedSections = new Set();
+  const pendingRows = new Set();
+
+  // ─────────────────────────────────────────────
+  // Toast
+  // ─────────────────────────────────────────────
+  function showToast(msg, type = 'info') {
+    const container = document.getElementById('toasts');
+    const el = document.createElement('div');
+    el.className = 'toast' + (type === 'error' ? ' toast-error' : '');
+    el.textContent = msg;
+    container.appendChild(el);
+    setTimeout(() => {
+      el.classList.add('toast-out');
+      el.addEventListener('transitionend', () => el.remove(), { once: true });
+    }, 3000);
+  }
+
+  // ─────────────────────────────────────────────
+  // Status cycling
+  // ─────────────────────────────────────────────
+  async function cycleStatus(sheetRow) {
+    if (pendingRows.has(sheetRow)) return;
+
+    const rowIdx = allRows.findIndex(r => r.sheetRow === sheetRow);
+    if (rowIdx === -1) return;
+
+    const row = allRows[rowIdx];
+    const currentKey = normaliseStatus(row.status);
+    if (!currentKey) return;
+
+    const newKey = STATUS_CYCLE[currentKey];
+    const newSheetValue = STATUS_SHEET_VALUE[newKey];
+    const newLabel = STATUS_SECTIONS.find(s => s.key === newKey)?.label ?? newKey;
+    const oldStatus = row.status;
+    const taskName = row.was.trim();
+
+    if (!APPS_SCRIPT_URL) {
+      showToast('Apps Script URL nicht konfiguriert', 'error');
+      return;
+    }
+
+    // Optimistic update
+    pendingRows.add(sheetRow);
+    allRows[rowIdx] = { ...row, status: newSheetValue };
+    renderContent();
+    showToast(`„${taskName}" → „${newLabel}"`);
+
+    try {
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        // text/plain avoids a CORS preflight (Apps Script doesn't handle OPTIONS)
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ sheetRow, newStatus: newSheetValue }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.ok === false) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      allRows[rowIdx] = { ...row, status: oldStatus };
+      showToast(`Fehler – „${taskName}" nicht gespeichert`, 'error');
+      console.error(err);
+    } finally {
+      pendingRows.delete(sheetRow);
+      renderContent();
+    }
   }
 
   // ─────────────────────────────────────────────
@@ -388,7 +535,7 @@
         status:   g(2).trim(),
         deadline: g(3).trim(),
         details:  g(4).trim(),
-        rawIndex: i,
+        sheetRow: i + 2,   // gviz rows are 0-indexed data rows; row 1 = header → +2
       });
     }
     return rows;
@@ -397,19 +544,13 @@
   // ─────────────────────────────────────────────
   // Parse hierarchy
   // ─────────────────────────────────────────────
-
-  // A row is a "header" if it has no owner and no status
   function isHeader(row) {
     return !row.owner && !row.status;
   }
 
-  // Get the ancestor header chain for a row at `index` in `rows`
-  // Returns array of trimmed header strings, outermost first
   function headerChain(rows, index) {
-    const cur = rows[index];
-    const curSpaces = leadingSpaces(cur.was);
+    const curSpaces = leadingSpaces(rows[index].was);
     const chain = [];
-
     let searchSpaces = curSpaces;
     for (let i = index - 1; i >= 0; i--) {
       const row = rows[i];
@@ -425,18 +566,17 @@
   }
 
   // ─────────────────────────────────────────────
-  // Build structured data
+  // Build sections
   // ─────────────────────────────────────────────
   function buildSections(rows) {
-    // sections: { todo: [...], inprog: [...], almost: [...], done: [...] }
     const sections = { todo: [], inprog: [], almost: [], done: [] };
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      if (isHeader(row)) continue;  // skip pure headers
+      if (isHeader(row)) continue;
 
       const sectionKey = normaliseStatus(row.status);
-      if (!sectionKey) continue;   // skip rows with unknown status
+      if (!sectionKey) continue;
 
       const chain = headerChain(rows, i);
       const dk = deadlineKey(row.deadline);
@@ -444,15 +584,17 @@
       const ok = ownerKey(row.owner);
 
       sections[sectionKey].push({
-        was:       row.was.trim(),
-        ownerKey:  ok,
+        was:        row.was.trim(),
+        sheetRow:   row.sheetRow,
+        statusKey:  sectionKey,
+        ownerKey:   ok,
         ownerLabel: ok ? OWNERS[ok].label : (row.owner || '—'),
-        ownerCls:  ok ? OWNERS[ok].cls : 'owner-other',
+        ownerCls:   ok ? OWNERS[ok].cls : 'owner-other',
         ownerOrder: ok != null ? OWNERS[ok].order : 99,
-        deadline:  dl,
-        details:   row.details,
-        headers:   chain,
-        done:      sectionKey === 'done',
+        deadline:   dl,
+        details:    row.details,
+        headers:    chain,
+        pending:    pendingRows.has(row.sheetRow),
       });
     }
     return sections;
@@ -461,38 +603,34 @@
   // ─────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────
-
   function renderDeadlineBadge(dl) {
     if (!dl) return '';
     return `<span class="deadline-badge ${dl.badgeCls}">${esc(dl.label)}</span>`;
   }
 
   function renderTask(task) {
-    const barCls   = task.deadline ? task.deadline.barCls : 'dl-none';
-    const doneCls  = task.done ? ' done' : '';
+    const barCls     = task.deadline ? task.deadline.barCls : 'dl-none';
+    const statusCls  = `st-${task.statusKey}`;
+    const pendingCls = task.pending ? ' pending' : '';
     const detailsHtml = task.details
       ? `<div class="task-details">${esc(task.details)}</div>`
       : '';
-    const badgeHtml = renderDeadlineBadge(task.deadline);
 
     return `
-      <div class="task-item ${barCls}${doneCls}">
-        <div class="task-check"></div>
+      <div class="task-item ${barCls} ${statusCls}${pendingCls}">
+        <div class="task-check" onclick="cycleStatus(${task.sheetRow})" title="Status weiterschalten"></div>
         <div class="task-content">
           <div class="task-name">${esc(task.was)}</div>
           ${detailsHtml}
         </div>
-        <div class="task-meta">${badgeHtml}</div>
+        <div class="task-meta">${renderDeadlineBadge(task.deadline)}</div>
       </div>`;
   }
 
   function renderSection(sectionMeta, tasks) {
     const count = tasks.length;
-
-    // Sort tasks by owner order, then original order preserved within each owner
     const sorted = [...tasks].sort((a, b) => a.ownerOrder - b.ownerOrder);
 
-    // Group consecutive tasks with same owner (while preserving sort)
     const ownerGroups = [];
     let curGroup = null;
     for (const task of sorted) {
@@ -509,13 +647,10 @@
       bodyHtml = '<div class="empty-section">Keine Einträge</div>';
     } else {
       for (const group of ownerGroups) {
-        // Render owner chip
-        const ownerEmoji = group.key === 'eule' ? '🦉' : group.key === 'fuchs' ? '🦊' : group.key === 'team' ? '👥' : '👤';
+        const emoji = group.key === 'eule' ? '🦉' : group.key === 'fuchs' ? '🦊' : group.key === 'team' ? '👥' : '👤';
         bodyHtml += `<div class="owner-group">
-          <div class="owner-label ${group.ownerCls}">${ownerEmoji} ${esc(group.ownerLabel)}</div>`;
+          <div class="owner-label ${group.ownerCls}">${emoji} ${esc(group.ownerLabel)}</div>`;
 
-        // Group tasks by their header chain (as a string key) to show header labels
-        // We render tasks in order but insert a header label when the chain changes
         let lastChainKey = null;
         for (const task of group.tasks) {
           const chainKey = task.headers.join(' › ');
@@ -528,8 +663,7 @@
           }
           bodyHtml += renderTask(task);
         }
-
-        bodyHtml += `</div>`; // owner-group
+        bodyHtml += `</div>`;
       }
     }
 
@@ -547,9 +681,31 @@
       </div>`;
   }
 
+  function renderContent() {
+    const sections = buildSections(allRows);
+
+    let html = '';
+    for (const meta of STATUS_SECTIONS) {
+      html += renderSection(meta, sections[meta.key]);
+    }
+    document.getElementById('content').innerHTML = html;
+
+    // Re-apply collapsed state
+    for (const key of collapsedSections) {
+      document.getElementById(`sec-${key}`)?.classList.add('collapsed');
+    }
+
+    // Update subtitle
+    const total = Object.values(sections).reduce((s, a) => s + a.length, 0);
+    const done  = sections.done.length;
+    document.getElementById('subtitle').textContent =
+      `${total} Aufgaben · ${done} erledigt`;
+  }
+
   function toggleSection(key) {
-    const el = document.getElementById(`sec-${key}`);
-    if (el) el.classList.toggle('collapsed');
+    if (collapsedSections.has(key)) collapsedSections.delete(key);
+    else collapsedSections.add(key);
+    document.getElementById(`sec-${key}`)?.classList.toggle('collapsed');
   }
 
   // ─────────────────────────────────────────────
@@ -557,24 +713,9 @@
   // ─────────────────────────────────────────────
   async function init() {
     try {
-      const rows = await fetchTodos();
-      const sections = buildSections(rows);
-
-      const totalTasks = Object.values(sections).reduce((s, arr) => s + arr.length, 0);
-      const doneTasks  = sections.done.length;
-      document.getElementById('subtitle').textContent =
-        `${totalTasks} Aufgaben · ${doneTasks} erledigt`;
-
-      let html = '';
-      for (const meta of STATUS_SECTIONS) {
-        html += renderSection(meta, sections[meta.key]);
-      }
-      document.getElementById('content').innerHTML = html;
-
-      // Collapse "Done" by default if it has entries
-      if (sections.done.length > 0) {
-        document.getElementById('sec-done')?.classList.add('collapsed');
-      }
+      allRows = await fetchTodos();
+      collapsedSections.add('done');
+      renderContent();
     } catch (err) {
       document.getElementById('content').innerHTML = `
         <div class="error-box">
