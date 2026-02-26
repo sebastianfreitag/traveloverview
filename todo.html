@@ -492,6 +492,8 @@
     try {
       const res = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
+        // text/plain avoids a CORS preflight (Apps Script doesn't handle OPTIONS)
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ sheetRow, newStatus: newSheetValue }),
       });
       const json = await res.json().catch(() => ({}));
