@@ -243,6 +243,8 @@
       margin-top: 0.55rem; font-size: 0.82rem; color: #475569;
     }
     .travel-info-calculating { color: #94a3b8; font-style: italic; }
+    a.travel-info { text-decoration: none; }
+    a.travel-info:hover { text-decoration: underline; }
 
     /* ── Navigation bar ── */
     .nav-bar {
@@ -427,8 +429,8 @@
       const v = raw.trim().toLowerCase();
       if (v === 'no')               return { level: 0, icon: '✗',  text: 'No laundry' };
       if (v.includes('laundromat')) return { level: 1, icon: '🏪', text: raw.trim() };
-      if (v === 'w+d')              return { level: 3, icon: '🫧✓', text: 'Washer + Dryer' };
-      if (v === 'w' || v === 'washer') return { level: 2, icon: '🫧', text: 'Washer (no dryer)' };
+      if (v === 'w+d')              return { level: 3, icon: '✨',  text: 'Washer + Dryer' };
+      if (v === 'w' || v === 'washer') return { level: 2, icon: '🧺', text: 'Washer (no dryer)' };
       return { level: -1, icon: '❓', text: raw.trim() };
     }
 
@@ -845,9 +847,9 @@
                 referrerpolicy="no-referrer-when-downgrade">
               </iframe>
             </div>
-            ${prevLocation
-              ? `<div class="travel-info travel-info-calculating" id="travel-info">Calculating drive from ${esc(prevLocation)}…</div>`
-              : ''}
+            <a class="travel-info ${prevLocation ? 'travel-info-calculating' : ''}" id="travel-info"
+               href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stay.address || stay.location)}&travelmode=driving"
+               target="_blank" rel="noopener noreferrer">${prevLocation ? `Calculating drive from ${esc(prevLocation)}…` : `🗺️ Navigate to ${esc(stay.location)}`}</a>
           </div>
 
           <!-- Cancellation -->
