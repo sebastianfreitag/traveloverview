@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Next Stay</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(160deg, #0f0c29 0%, #302b63 50%, #1a1040 100%);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2rem 1rem 3rem;
+      color: #1a1a2e;
+    }
+
+    #app { width: 100%; max-width: 680px; }
+
+    /* ── Loading ── */
+    .loading {
+      text-align: center;
+      color: rgba(255,255,255,0.8);
+      padding: 5rem 2rem;
+    }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 3px solid rgba(255,255,255,0.25);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading p { font-size: 0.9rem; opacity: 0.7; }
+
+    /* ── Error ── */
+    .error-box {
+      background: #fee2e2; border: 1px solid #fca5a5;
+      border-radius: 14px; padding: 1.5rem;
+      color: #991b1b; text-align: center;
+    }
+    .error-box strong { display: block; margin-bottom: 0.4rem; }
+
+    /* ── Card ── */
+    .card {
+      background: #fff;
+      border-radius: 22px;
+      box-shadow: 0 30px 70px rgba(0,0,0,0.45);
+      overflow: hidden;
+    }
+
+    /* ── Card header ── */
+    .card-header {
+      position: relative;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 1.5rem 1.75rem;
+      background: linear-gradient(135deg, #1e3a5f 0%, #0d9488 100%);
+      overflow: hidden;
+    }
+    .card-header-bg {
+      position: absolute; inset: 0;
+      background-size: cover; background-position: center;
+      transition: opacity 0.6s ease;
+      opacity: 0;
+    }
+    .card-header-bg.loaded { opacity: 1; }
+    .card-header-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.18) 60%, transparent 100%);
+    }
+    .card-header-content {
+      position: relative; z-index: 1;
+      display: flex; align-items: flex-end; gap: 0.75rem;
+    }
+    .flag { flex-shrink: 0; }
+    .flag-img { width: 52px; height: auto; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.35); display: block; }
+    .header-text { }
+    .next-stay-label {
+      font-size: 0.65rem; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 0.2rem;
+    }
+    .location-name {
+      font-size: 1.65rem; font-weight: 700;
+      color: #fff; line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+    .booking-chip {
+      position: absolute; top: 1rem; right: 1rem; z-index: 2;
+      background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.25);
+      color: #fff; border-radius: 20px;
+      padding: 0.3rem 0.7rem;
+      font-size: 0.7rem; font-weight: 600;
+      text-decoration: none; letter-spacing: 0.04em;
+      backdrop-filter: blur(4px);
+      transition: background 0.2s;
+    }
+    .booking-chip:hover { background: rgba(0,0,0,0.6); }
+
+    /* ── Card body ── */
+    .card-body { padding: 1.5rem 1.75rem 1.75rem; }
+
+    .section { margin-bottom: 1.4rem; }
+    .section:last-child { margin-bottom: 0; }
+    .section-title {
+      font-size: 0.68rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: #94a3b8; margin-bottom: 0.65rem;
+    }
+
+    .divider { height: 1px; background: #f1f5f9; margin: 1.4rem 0; }
+
+    /* ── Date grid ── */
+    .date-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .date-card {
+      background: #f8fafc; border: 1px solid #e2e8f0;
+      border-radius: 12px; padding: 0.9rem 1rem;
+    }
+    .date-card-icon { font-size: 1.2rem; margin-bottom: 0.35rem; }
+    .date-card-label {
+      font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #94a3b8; margin-bottom: 0.2rem;
+    }
+    .date-card-relative {
+      font-size: 0.95rem; font-weight: 700; color: #1e3a5f;
+    }
+    .date-card-absolute {
+      font-size: 0.8rem; color: #64748b; font-variant-numeric: tabular-nums;
+    }
+    .date-card-time {
+      font-size: 0.8rem; color: #0d9488; font-weight: 600; margin-top: 0.15rem;
+    }
+
+    /* ── Nights ── */
+    .nights-row { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.6rem; }
+    .nights-num { font-size: 2rem; font-weight: 800; color: #1e3a5f; line-height: 1; }
+    .nights-suffix { font-size: 1rem; color: #64748b; }
+    .nights-remaining { font-size: 0.85rem; color: #0d9488; font-weight: 600; }
+    .nights-remaining-suffix { font-size: 0.85rem; color: #64748b; }
+    .progress-bar {
+      height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #1e3a5f, #0d9488);
+      border-radius: 3px; transition: width 0.5s ease;
+    }
+
+    /* ── Status badges (cancellation, payment) ── */
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.5rem 0.9rem; border-radius: 8px;
+      font-size: 0.85rem; font-weight: 500; border: 1px solid;
+    }
+    .badge-green  { background: #dcfce7; border-color: #86efac; color: #166534; }
+    .badge-yellow { background: #fef9c3; border-color: #fde047; color: #854d0e; }
+    .badge-red    { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+    .badge-blue   { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
+
+    /* ── Price ── */
+    .price-main { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+    .price-eur {
+      font-size: 2.2rem; font-weight: 800; color: #1e3a5f;
+      font-variant-numeric: tabular-nums; line-height: 1;
+    }
+    .price-original { font-size: 0.95rem; color: #94a3b8; }
+    .price-per-night { font-size: 0.85rem; color: #64748b; margin: 0.3rem 0 0.55rem; }
+    .price-pn-amount { font-weight: 600; color: #374151; }
+
+    /* ── Amenities ── */
+    .amenities-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .amenity-card { border-radius: 12px; padding: 0.85rem 1rem; border: 1px solid; }
+    .am-0 { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+    .am-1 { background: #fef9c3; border-color: #fde047; color: #854d0e; }
+    .am-2 { background: #dcfce7; border-color: #86efac; color: #166534; }
+    .am-3 { background: #cffafe; border-color: #67e8f9; color: #164e63; }
+    .am-x { background: #f1f5f9; border-color: #e2e8f0; color: #475569; }
+    .amenity-label {
+      font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; opacity: 0.65; margin-bottom: 0.35rem;
+    }
+    .amenity-icon { font-size: 1.1rem; margin-bottom: 0.15rem; }
+    .amenity-text { font-size: 0.82rem; font-weight: 600; }
+
+    /* ── Text blocks ── */
+    .text-block {
+      background: #f8fafc; border-left: 3px solid #0d9488;
+      border-radius: 0 10px 10px 0; padding: 0.8rem 1rem;
+      font-size: 0.88rem; color: #374151; line-height: 1.6;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .text-block.activities { border-left-color: #8b5cf6; }
+    .inline-link { color: #0d9488; text-decoration: underline; word-break: break-all; }
+
+    /* ── Booking preview ── */
+    .preview-image-wrap {
+      width: 100%; height: 200px; overflow: hidden;
+      background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 3rem; position: relative;
+    }
+    .preview-img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .preview-body { padding: 0.9rem 1rem; }
+    .preview-platform {
+      font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: #94a3b8; margin-bottom: 0.2rem;
+    }
+    .preview-title {
+      font-size: 0.95rem; font-weight: 600; color: #1e3a5f; margin-bottom: 0.25rem;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .preview-desc {
+      font-size: 0.82rem; color: #64748b; margin-bottom: 0.7rem; line-height: 1.5;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .open-btn {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      background: #1e3a5f; color: #fff;
+      padding: 0.45rem 1rem; border-radius: 8px;
+      font-size: 0.82rem; font-weight: 600; text-decoration: none;
+      transition: background 0.2s;
+    }
+    .open-btn:hover { background: #0d9488; }
+
+    /* ── Map ── */
+    .map-wrap {
+      border-radius: 12px; overflow: hidden;
+      border: 1px solid #e2e8f0; height: 240px;
+    }
+    .map-frame { width: 100%; height: 100%; display: block; }
+    .travel-info {
+      display: flex; align-items: center; gap: 0.35rem;
+      margin-top: 0.55rem; font-size: 0.82rem; color: #475569;
+    }
+    .travel-info-calculating { color: #94a3b8; font-style: italic; }
+
+    /* ── Navigation bar ── */
+    .nav-bar {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0.75rem; margin-top: 1.1rem;
+    }
+    .nav-btn {
+      background: rgba(255,255,255,0.13);
+      border: 1px solid rgba(255,255,255,0.28);
+      color: #fff; border-radius: 9px;
+      padding: 0.45rem 1.1rem;
+      font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; transition: background 0.15s;
+      letter-spacing: 0.01em;
+    }
+    .nav-btn:hover:not(:disabled) { background: rgba(255,255,255,0.24); }
+    .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .nav-counter {
+      color: rgba(255,255,255,0.75);
+      font-size: 0.82rem; font-weight: 600;
+      min-width: 4.5rem; text-align: center;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 480px) {
+      body { padding: 0.75rem 0.5rem 2rem; }
+      .card-body { padding: 1.25rem 1.25rem 1.5rem; }
+      .date-grid, .amenities-grid { grid-template-columns: 1fr; }
+      .location-name { font-size: 1.35rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p>Loading your next stay…</p>
+    </div>
+    <div id="error-box" hidden></div>
+    <div class="card" id="stay-card" hidden></div>
+    <div class="nav-bar" id="nav-bar" hidden>
+      <button class="nav-btn" id="btn-prev">← Previous</button>
+      <span class="nav-counter" id="nav-counter"></span>
+      <button class="nav-btn" id="btn-next">Next →</button>
+    </div>
+  </div>
+
+  <script>
+    // ─────────────────────────────────────────────
+    // Config
+    // ─────────────────────────────────────────────
+    const SHEET_ID = '16S-YbYNYvdjFLqSBVM01j0BgpWe57u2Bo1407IqnJx0';
+    const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
+
+    // ─────────────────────────────────────────────
+    // Utilities
+    // ─────────────────────────────────────────────
+    function today() {
+      const d = new Date();
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+
+    // Convert a flag cell value to a flagcdn.com path segment, e.g.:
+    //   🇩🇪  → "de"      (Unicode Regional Indicator pair → ISO 3166-1 alpha-2)
+    //   gb-eng → "gb-eng"  (text code passed straight through — for subdivisions like
+    //                        England/Scotland/Wales/N.Ireland that have no standard emoji)
+    function flagToCC(flag) {
+      if (!flag) return null;
+      const trimmed = flag.trim();
+      // If it's a plain text code (e.g. "gb-eng", "gb-sct", "gb-wls", "gb-nir"), use as-is.
+      if (/^[a-zA-Z]{2}(-[a-zA-Z0-9]+)?$/.test(trimmed)) {
+        return trimmed.toLowerCase();
+      }
+      // Otherwise expect a Unicode flag emoji (pair of Regional Indicator Symbols U+1F1E6–U+1F1FF).
+      const pts = [...trimmed].map(c => c.codePointAt(0));
+      if (pts.length >= 2 && pts[0] >= 0x1F1E6 && pts[0] <= 0x1F1FF
+                          && pts[1] >= 0x1F1E6 && pts[1] <= 0x1F1FF) {
+        return String.fromCharCode(pts[0] - 0x1F1E6 + 65, pts[1] - 0x1F1E6 + 65).toLowerCase();
+      }
+      return null;
+    }
+
+    function esc(s) {
+      if (s == null) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                      .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    // Turn bare URLs into clickable links, correctly handling & in query strings.
+    // Operates on raw text first (to match full URLs), then escapes each segment.
+    function linkify(s) {
+      if (s == null) return '';
+      const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
+      let result = '';
+      let lastIndex = 0;
+      let match;
+      while ((match = urlRegex.exec(s)) !== null) {
+        result += esc(s.slice(lastIndex, match.index));
+        const rawUrl = match[1];
+        result += `<a href="${esc(rawUrl)}" target="_blank" rel="noopener noreferrer" class="inline-link">${esc(rawUrl)}</a>`;
+        lastIndex = match.index + rawUrl.length;
+      }
+      result += esc(s.slice(lastIndex));
+      return result;
+    }
+
+    function parseTimeVal(v) {
+      if (v == null) return '';
+      if (typeof v === 'string') {
+        // gviz time format: "Date(1899,11,30,15,0,0)" — Google Sheets time-of-day epoch
+        const m = v.match(/^Date\(\d+,\d+,\d+,(\d+),(\d+),\d+\)$/);
+        if (m) return `${String(+m[1]).padStart(2,'0')}:${String(+m[2]).padStart(2,'0')}`;
+        // Already a plain "HH:MM" string — pass through
+        if (/^\d{1,2}:\d{2}$/.test(v)) return v;
+      }
+      return '';
+    }
+
+    function parseDateVal(v) {
+      if (v == null) return null;
+      if (typeof v === 'string') {
+        // gviz format: "Date(2026,3,21)" — months are 0-indexed
+        const m = v.match(/^Date\((\d+),(\d+),(\d+)\)$/);
+        if (m) return new Date(+m[1], +m[2], +m[3]);
+        // ISO text: "2026-04-21"
+        const iso = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3]);
+      }
+      return null;
+    }
+
+    function toISO(d) {
+      if (!d) return '';
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function relativeDate(d) {
+      const t = today();
+      const diff = Math.round((d - t) / 86400000);
+      if (diff === 0)  return 'today';
+      if (diff === 1)  return 'tomorrow';
+      if (diff === -1) return 'yesterday';
+      if (diff > 1)    return `in ${diff} days`;
+      return `${Math.abs(diff)} days ago`;
+    }
+
+    function formatDateFull(d) {
+      if (!d) return 'Unknown';
+      return `${relativeDate(d)} (${toISO(d)})`;
+    }
+
+    function formatEur(n) {
+      if (n == null) return '';
+      const v = Number(n);
+      if (Number.isNaN(v)) return '';
+      if (v === Math.round(v)) return `€${Math.round(v).toLocaleString('de-DE')}`;
+      return `€${v.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+    }
+
+    function currencySymbol(c) {
+      if (!c) return '€';
+      const u = c.trim().toUpperCase();
+      if (u === 'EUR') return '€';
+      if (u === 'USD') return '$';
+      if (u === 'GBP') return '£';
+      return u + '\u00a0'; // e.g. "DKK "
+    }
+
+    function fmtOrig(amount, currency) {
+      if (amount == null) return '';
+      const sym = currencySymbol(currency);
+      const v = Number(amount);
+      if (v === Math.round(v)) return `${sym}${Math.round(v).toLocaleString('de-DE')}`;
+      return `${sym}${v.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+    }
+
+    // ─────────────────────────────────────────────
+    // Laundry
+    // ─────────────────────────────────────────────
+    function parseLaundry(raw) {
+      if (!raw) return { level: -1, icon: '❓', text: 'Unknown' };
+      const v = raw.trim().toLowerCase();
+      if (v === 'no')               return { level: 0, icon: '✗',  text: 'No laundry' };
+      if (v.includes('laundromat')) return { level: 1, icon: '🏪', text: raw.trim() };
+      if (v === 'w+d')              return { level: 3, icon: '🫧✓', text: 'Washer + Dryer' };
+      if (v === 'w' || v === 'washer') return { level: 2, icon: '🫧', text: 'Washer (no dryer)' };
+      return { level: -1, icon: '❓', text: raw.trim() };
+    }
+
+    // ─────────────────────────────────────────────
+    // Parking
+    // ─────────────────────────────────────────────
+    function parseParking(raw) {
+      if (!raw) return { level: -1, icon: '❓', text: 'Unknown' };
+      const v = raw.trim().toLowerCase();
+      if (v === 'no') return { level: 0, icon: '🚫', text: 'No parking' };
+      if (/^\d/.test(v)) return { level: 1, icon: '🅿️', text: raw.trim() };
+      if (v === 'included') return { level: 3, icon: '🅿️', text: 'Parking included' };
+      if (v.includes('free street') || v.includes('abschira'))
+        return { level: 2, icon: '🅿️', text: raw.trim() };
+      // anything else (e.g. other free or custom text) → good
+      return { level: 2, icon: '🅿️', text: raw.trim() };
+    }
+
+    function amenityClass(level) {
+      return ['am-0','am-1','am-2','am-3'][level] ?? 'am-x';
+    }
+
+    // ─────────────────────────────────────────────
+    // Fetch + parse sheet
+    // ─────────────────────────────────────────────
+    async function fetchStays() {
+      const res = await fetch(GVIZ_URL);
+      if (!res.ok) throw new Error(`HTTP ${res.status} fetching sheet`);
+      const text = await res.text();
+      const match = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?\s*$/);
+      if (!match) throw new Error('Could not parse gviz response');
+      const table = JSON.parse(match[1]).table;
+
+      const stays = [];
+      // rows[0] = row 2 (skip — not a stay); starts at rows[1]
+      for (let i = 1; i < table.rows.length; i++) {
+        const row = table.rows[i];
+        if (!row?.c) continue;
+        const c = row.c;
+        const g = (idx) => c[idx]?.v ?? null;
+
+        const from  = parseDateVal(g(0));
+        const until = parseDateVal(g(1));
+        if (!from || !until) continue;
+
+        const location = (g(4) ?? '').trim();
+        if (!location || location.toLowerCase().includes('unassigned')) continue;
+
+        stays.push({
+          from, until,
+          nights:          g(2),
+          flag:            g(3)  ?? '',
+          location:        g(4)  ?? '',
+          link:            g(5)  ?? '',
+          price:           g(6),
+          currency:        g(7)  ?? 'EUR',
+          laundry:         g(8)  ?? '',
+          parking:         g(9)  ?? '',
+          freeCancelUntil: parseDateVal(g(10)),
+          paymentDate:     parseDateVal(g(12)),
+          priceEur:        g(13),
+          pricePerNight:   g(14),
+          checkinTime:     parseTimeVal(g(16)),
+          checkoutTime:    parseTimeVal(g(17)),
+          comment:         g(18) ?? '',
+          activities:      g(19) ?? '',
+          address:         g(20) ?? '',
+        });
+      }
+      return stays;
+    }
+
+    // ─────────────────────────────────────────────
+    // Find index of "next" stay
+    // Logic: first stay where until > today (ongoing or upcoming).
+    // If all past: return last index.
+    // ─────────────────────────────────────────────
+    function findNextStayIndex(stays) {
+      const t = today();
+      for (let i = 0; i < stays.length; i++) {
+        if (stays[i].until > t) return i;
+      }
+      return stays.length - 1;
+    }
+
+    // ─────────────────────────────────────────────
+    // Link preview
+    // Strategy 1: noembed.com (native Airbnb/Booking OEmbed, CORS-enabled)
+    // Strategy 2: allorigins.win CORS proxy + HTML OG parsing (fallback)
+    // ─────────────────────────────────────────────
+    function getPlatform(url) {
+      if (!url) return 'Booking';
+      const u = url.toLowerCase();
+      if (u.includes('airbnb'))      return 'Airbnb';
+      if (u.includes('booking.com')) return 'Booking.com';
+      if (u.includes('vrbo'))        return 'VRBO';
+      if (u.includes('hotels.com'))  return 'Hotels.com';
+      if (u.includes('expedia'))     return 'Expedia';
+      return 'View listing';
+    }
+
+    async function timedFetch(url, ms) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), ms);
+      try {
+        return await fetch(url, { signal: controller.signal });
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    // Proxy an image URL through images.weserv.nl to bypass hotlink/referrer protection.
+    // This is necessary for e.g. Booking.com CDN (cf.bstatic.com) which blocks cross-origin loads.
+    function proxyImgSrc(url) {
+      if (!url) return '';
+      return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=680&output=jpg&q=85`;
+    }
+
+    // Returns true if the microlink/OG data looks like a bot-challenge page rather than real content.
+    function isBotPage(title, description) {
+      const t = (title       ?? '').toLowerCase();
+      const d = (description ?? '').toLowerCase();
+      return t.includes('bot or not') || t.includes('captcha') || t.includes('access denied') ||
+             d.includes('bot or not') || d.includes("can't tell if you're a human");
+    }
+
+    async function fetchPreview(url) {
+      if (!url) return null;
+
+      // ── Airbnb: title/description via microlink only — no image ──
+      // All image sources (OEmbed, microlink og:image) return an incorrect/cached photo,
+      // because Airbnb's real cover photo is loaded client-side via JS. Better to show no
+      // image than the wrong one.
+      if (url.toLowerCase().includes('airbnb')) {
+        try {
+          const res = await timedFetch(
+            `https://api.microlink.io/?url=${encodeURIComponent(url)}&force=true`, 10000
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'success' && data.data) {
+              console.log('[preview] airbnb: using microlink title/desc, skipping image');
+              return {
+                image:       null,   // intentionally omitted — all sources return wrong photo
+                title:       data.data.title       || null,
+                description: data.data.description || null,
+              };
+            }
+          }
+        } catch (e) {
+          console.log('[preview] airbnb microlink failed:', e.message);
+        }
+        return null;
+      }
+
+      // ── Strategy 2: microlink.io (Booking.com, and general fallback) ──
+      // Skip for sites known to return bot-challenge pages.
+      const isBotSite = /expedia|vrbo/i.test(url);
+      if (!isBotSite) {
+        try {
+          const res = await timedFetch(
+            `https://api.microlink.io/?url=${encodeURIComponent(url)}&force=true`, 10000
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'success' && data.data) {
+              const title = data.data.title       || null;
+              const desc  = data.data.description || null;
+              if (isBotPage(title, desc)) {
+                console.log('[preview] microlink returned bot-challenge page, discarding');
+              } else {
+                const img = data.data.image?.url || null;
+                console.log('[preview] microlink succeeded, image:', img);
+                return { image: img, title, description: desc };
+              }
+            } else {
+              console.log('[preview] microlink returned non-success:', data.status);
+            }
+          }
+        } catch (e) {
+          console.log('[preview] microlink failed:', e.message);
+        }
+      }
+
+      // ── Strategy 3: noembed.com (generic OEmbed fallback) ──
+      try {
+        const res = await timedFetch(
+          `https://noembed.com/embed?url=${encodeURIComponent(url)}`, 8000
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (!data.error && (data.thumbnail_url || data.title)) {
+            console.log('[preview] noembed succeeded, image:', data.thumbnail_url);
+            return {
+              image:       data.thumbnail_url || null,
+              title:       data.title         || null,
+              description: null,
+            };
+          }
+          console.log('[preview] noembed no result:', data.error ?? '(no thumbnail or title)');
+        }
+      } catch (e) {
+        console.log('[preview] noembed failed:', e.message);
+      }
+
+      console.log('[preview] all strategies exhausted, no preview');
+      return null;
+    }
+
+    // ─────────────────────────────────────────────
+    // Driving distance/duration (Nominatim + OSRM, no API key)
+    // ─────────────────────────────────────────────
+    async function geocode(location) {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1`;
+      try {
+        const res = await timedFetch(url, 6000);
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (!data.length) return null;
+        return { lat: data[0].lat, lon: data[0].lon };
+      } catch (e) {
+        console.log('[travel] geocode failed:', e.message);
+        return null;
+      }
+    }
+
+    async function fetchDrivingInfo(fromLoc, toLoc) {
+      try {
+        const [from, to] = await Promise.all([geocode(fromLoc), geocode(toLoc)]);
+        if (!from || !to) return null;
+        const url = `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=false`;
+        const res = await timedFetch(url, 8000);
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data.code !== 'Ok' || !data.routes?.length) return null;
+        const route = data.routes[0];
+        const distKm = Math.round(route.distance / 1000);
+        const totalMins = Math.round(route.duration / 60);
+        const h = Math.floor(totalMins / 60), m = totalMins % 60;
+        const duration = h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m} min`;
+        return { distance: `${distKm} km`, duration };
+      } catch (e) {
+        console.log('[travel] failed:', e.message);
+        return null;
+      }
+    }
+
+    // ─────────────────────────────────────────────
+    // Render
+    // ─────────────────────────────────────────────
+    function renderStay(stay, preview, label, prevLocation) {
+      const t = today();
+      const isEur = (stay.currency ?? '').trim().toUpperCase() === 'EUR';
+
+      // Nights
+      const totalNights  = stay.nights ?? Math.round((stay.until - stay.from) / 86400000);
+      const notStarted   = t < stay.from;
+      const isCompleted  = t >= stay.until;
+      const elapsed      = notStarted ? 0 : Math.max(0, Math.min(totalNights, Math.round((t - stay.from) / 86400000)));
+      const remaining    = isCompleted ? 0 : notStarted ? totalNights : Math.max(0, Math.round((stay.until - t) / 86400000));
+      const pct          = totalNights > 0 ? (elapsed / totalNights) * 100 : 0;
+
+      // Cancellation
+      const fc = stay.freeCancelUntil;
+      let cancelHtml = '';
+      if (fc) {
+        if (fc >= t) {
+          cancelHtml = `<div class="status-badge badge-green">✅ Free cancellation until ${esc(formatDateFull(fc))}</div>`;
+        } else {
+          cancelHtml = `<div class="status-badge badge-yellow">⚠️ Free cancellation expired (was ${esc(toISO(fc))})</div>`;
+        }
+      } else {
+        cancelHtml = `<div class="status-badge badge-red">✗ No free cancellation</div>`;
+      }
+
+      // Payment
+      let paymentHtml = '';
+      if (stay.paymentDate) {
+        const paid = stay.paymentDate < t;
+        paymentHtml = paid
+          ? `<span class="status-badge badge-green" style="font-size:0.78rem;padding:0.3rem 0.75rem;">✓ Paid</span>`
+          : `<span class="status-badge badge-yellow" style="font-size:0.78rem;padding:0.3rem 0.75rem;">⏳ Not yet paid &mdash; due ${esc(toISO(stay.paymentDate))}</span>`;
+      }
+
+      // Laundry / Parking
+      const laundry = parseLaundry(stay.laundry);
+      const parking = parseParking(stay.parking);
+
+      // Platform + link
+      const platform = getPlatform(stay.link);
+
+      // Preview section (booking link)
+      let bookingHtml = '';
+      if (stay.link) {
+        const imgHtml = preview?.image
+          ? `<div class="preview-image-wrap"><img class="preview-img" src="${esc(preview.image)}" alt="Property photo" id="preview-img" onerror="this.parentElement.innerHTML='🏡'"></div>`
+          : `<div class="preview-image-wrap">🏡</div>`;
+        const titleHtml  = preview?.title       ? `<div class="preview-title">${esc(preview.title)}</div>`       : '';
+        const descHtml   = preview?.description ? `<div class="preview-desc">${esc(preview.description)}</div>`  : '';
+
+        bookingHtml = `
+          <div class="divider"></div>
+          <div class="section">
+            <div class="section-title">Booking</div>
+            <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+              ${imgHtml}
+              <div class="preview-body">
+                <div class="preview-platform">${esc(platform)}</div>
+                ${titleHtml}
+                ${descHtml}
+                <a href="${esc(stay.link)}" target="_blank" rel="noopener noreferrer" class="open-btn">
+                  Open listing ↗
+                </a>
+              </div>
+            </div>
+          </div>`;
+      }
+
+      // Optional sections
+      const commentHtml = stay.comment
+        ? `<div class="section"><div class="section-title">About this place</div><div class="text-block">${linkify(stay.comment)}</div></div>`
+        : '';
+      const activitiesHtml = stay.activities
+        ? `<div class="section"><div class="section-title">Planned activities</div><div class="text-block activities">${linkify(stay.activities)}</div></div>`
+        : '';
+
+      // Price
+      let priceHtml = '';
+      if (stay.priceEur != null) {
+        const origPart = !isEur && stay.price != null
+          ? `<span class="price-original">(${esc(fmtOrig(stay.price, stay.currency))} ${esc((stay.currency ?? '').trim())})</span>`
+          : '';
+        const perNightPart = stay.pricePerNight != null
+          ? `<div class="price-per-night"><span class="price-pn-amount">${esc(formatEur(stay.pricePerNight))}</span> per night</div>`
+          : '';
+        priceHtml = `
+          <div class="section">
+            <div class="section-title">Price</div>
+            <div class="price-main">
+              <span class="price-eur">${esc(formatEur(stay.priceEur))}</span>
+              ${origPart}
+            </div>
+            ${perNightPart}
+            ${paymentHtml}
+          </div>`;
+      }
+
+      return `
+        <div class="card-header" id="card-header">
+          <div class="card-header-bg" id="header-bg"></div>
+          <div class="card-header-overlay"></div>
+          ${stay.link ? `<a href="${esc(stay.link)}" target="_blank" rel="noopener noreferrer" class="booking-chip">${esc(platform)} ↗</a>` : ''}
+          <div class="card-header-content">
+            ${(() => {
+              const cc = flagToCC(stay.flag);
+              return cc
+                ? `<div class="flag"><img class="flag-img" src="https://flagcdn.com/w80/${cc}.png" alt="${esc(stay.flag)}" onerror="this.style.display='none'"></div>`
+                : stay.flag ? `<div class="flag" style="font-size:2.5rem;line-height:1">${stay.flag}</div>` : '';
+            })()}
+            <div class="header-text">
+              <div class="next-stay-label">${esc(label ?? 'Stay')}</div>
+              <div class="location-name">${esc(stay.location)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body">
+
+          <!-- Dates -->
+          <div class="section">
+            <div class="section-title">Dates</div>
+            <div class="date-grid">
+              <div class="date-card">
+                <div class="date-card-icon">🔑</div>
+                <div class="date-card-label">Check-in</div>
+                <div class="date-card-relative">${esc(relativeDate(stay.from))}</div>
+                <div class="date-card-absolute">${esc(toISO(stay.from))}</div>
+                ${stay.checkinTime ? `<div class="date-card-time">from ${esc(stay.checkinTime)}</div>` : ''}
+              </div>
+              <div class="date-card">
+                <div class="date-card-icon">🧳</div>
+                <div class="date-card-label">Check-out</div>
+                <div class="date-card-relative">${esc(relativeDate(stay.until))}</div>
+                <div class="date-card-absolute">${esc(toISO(stay.until))}</div>
+                ${stay.checkoutTime ? `<div class="date-card-time">by ${esc(stay.checkoutTime)}</div>` : ''}
+              </div>
+            </div>
+          </div>
+
+          <!-- Duration -->
+          <div class="section">
+            <div class="section-title">Duration</div>
+            <div class="nights-row">
+              <span class="nights-num">${totalNights}</span>
+              <span class="nights-suffix">night${totalNights !== 1 ? 's' : ''} total</span>
+              ${isCompleted
+                ? `<span style="color:#94a3b8;margin:0 0.15rem;">·</span><span class="nights-remaining-suffix">completed</span>`
+                : notStarted
+                  ? `<span style="color:#94a3b8;margin:0 0.15rem;">·</span><span class="nights-remaining-suffix">not started yet</span>`
+                  : `<span style="color:#94a3b8;margin:0 0.15rem;">·</span><span class="nights-remaining">${remaining}</span><span class="nights-remaining-suffix">&nbsp;remaining</span>`}
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width:${pct.toFixed(1)}%"></div>
+            </div>
+          </div>
+
+          <!-- Map -->
+          <div class="section">
+            <div class="section-title">Location</div>
+            <div class="map-wrap">
+              <iframe
+                src="https://maps.google.com/maps?q=${encodeURIComponent(stay.address || stay.location)}&output=embed&z=13"
+                class="map-frame" style="border:0;" allowfullscreen loading="lazy"
+                referrerpolicy="no-referrer-when-downgrade">
+              </iframe>
+            </div>
+            ${prevLocation
+              ? `<div class="travel-info travel-info-calculating" id="travel-info">Calculating drive from ${esc(prevLocation)}…</div>`
+              : ''}
+          </div>
+
+          <!-- Cancellation -->
+          <div class="section">
+            <div class="section-title">Cancellation</div>
+            ${cancelHtml}
+          </div>
+
+          <!-- Price -->
+          ${priceHtml}
+
+          <!-- Amenities -->
+          <div class="section">
+            <div class="section-title">Amenities</div>
+            <div class="amenities-grid">
+              <div class="amenity-card ${amenityClass(laundry.level)}">
+                <div class="amenity-label">Laundry</div>
+                <div class="amenity-icon">${laundry.icon}</div>
+                <div class="amenity-text">${esc(laundry.text)}</div>
+              </div>
+              <div class="amenity-card ${amenityClass(parking.level)}">
+                <div class="amenity-label">Parking</div>
+                <div class="amenity-icon">${parking.icon}</div>
+                <div class="amenity-text">${esc(parking.text)}</div>
+              </div>
+            </div>
+          </div>
+
+          ${commentHtml}
+          ${activitiesHtml}
+          ${bookingHtml}
+
+        </div>`;
+    }
+
+    // ─────────────────────────────────────────────
+    // Navigation state
+    // ─────────────────────────────────────────────
+    let allStays    = [];
+    let nextStayIdx = 0;
+    let currentIdx  = 0;
+    let previewGen  = 0;  // incremented on each navigation to cancel stale previews
+
+    function getStayLabel(index) {
+      const t    = today();
+      const stay = allStays[index];
+      if (t >= stay.until)  return 'Past Stay';
+      if (t >= stay.from)   return 'Current Stay';
+      if (index === nextStayIdx) return 'Next Stay';
+      return 'Upcoming Stay';
+    }
+
+    function applyHeaderImage(imgUrl) {
+      if (!imgUrl) return;
+      const bg = document.getElementById('header-bg');
+      if (!bg) return;
+      const img = new Image();
+      img.onload = () => {
+        bg.style.backgroundImage = `url(${JSON.stringify(imgUrl)})`;
+        bg.classList.add('loaded');
+      };
+      img.src = imgUrl;
+    }
+
+    function applyPreviewToDom(preview) {
+      const cardEl = document.getElementById('stay-card');
+      if (!cardEl) return;
+      const imgWrap = cardEl.querySelector('.preview-image-wrap');
+      if (imgWrap && preview.image) {
+        // Route through images.weserv.nl to bypass CDN hotlink/referrer protection
+        // (e.g. Booking.com's cf.bstatic.com blocks direct cross-origin <img> loads)
+        const proxied = proxyImgSrc(preview.image);
+        imgWrap.innerHTML = `<img class="preview-img" src="${esc(proxied)}" alt="Property photo" onerror="this.onerror=null;this.src='';this.parentElement.innerHTML='🏡'">`;
+      }
+      if (preview.title && !cardEl.querySelector('.preview-title')) {
+        const platform = cardEl.querySelector('.preview-platform');
+        if (platform) {
+          const el = document.createElement('div');
+          el.className = 'preview-title';
+          el.textContent = preview.title;
+          platform.after(el);
+        }
+      }
+      if (preview.description && !cardEl.querySelector('.preview-desc')) {
+        const titleEl = cardEl.querySelector('.preview-title');
+        if (titleEl) {
+          const el = document.createElement('div');
+          el.className = 'preview-desc';
+          el.textContent = preview.description;
+          titleEl.after(el);
+        }
+      }
+      applyHeaderImage(preview.image);
+    }
+
+    function showStay(index) {
+      currentIdx = index;
+      previewGen++;
+      const gen = previewGen;
+
+      const cardEl  = document.getElementById('stay-card');
+      const stay    = allStays[index];
+      const prev    = index > 0 ? allStays[index - 1] : null;
+      const total   = allStays.length;
+
+      cardEl.innerHTML = renderStay(stay, null, getStayLabel(index), prev?.location ?? null);
+
+      document.getElementById('btn-prev').disabled    = index === 0;
+      document.getElementById('btn-next').disabled    = index === total - 1;
+      document.getElementById('nav-counter').textContent = `${index + 1} / ${total}`;
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      if (stay.link) {
+        fetchPreview(stay.link).then(preview => {
+          if (gen !== previewGen || !preview) return;
+          applyPreviewToDom(preview);
+        });
+      }
+
+      if (prev) {
+        fetchDrivingInfo(prev.address || prev.location, stay.address || stay.location).then(info => {
+          if (gen !== previewGen) return;
+          const el = document.getElementById('travel-info');
+          if (!el) return;
+          if (info) {
+            el.className = 'travel-info';
+            el.textContent = `🚗 ${info.distance} · ${info.duration} by car from ${prev.location}`;
+          } else {
+            el.className = 'travel-info travel-info-calculating';
+            el.textContent = 'Travel time unavailable';
+          }
+        });
+      }
+    }
+
+    // ─────────────────────────────────────────────
+    // Main
+    // ─────────────────────────────────────────────
+    async function main() {
+      const loadingEl = document.getElementById('loading');
+      const errorEl   = document.getElementById('error-box');
+      const cardEl    = document.getElementById('stay-card');
+      const navEl     = document.getElementById('nav-bar');
+
+      try {
+        allStays = await fetchStays();
+        if (!allStays.length) throw new Error('No stays found in the spreadsheet.');
+
+        nextStayIdx = findNextStayIndex(allStays);
+
+        document.getElementById('btn-prev').addEventListener('click', () => {
+          if (currentIdx > 0) showStay(currentIdx - 1);
+        });
+        document.getElementById('btn-next').addEventListener('click', () => {
+          if (currentIdx < allStays.length - 1) showStay(currentIdx + 1);
+        });
+
+        loadingEl.hidden = false; // keep visible until first render
+        cardEl.hidden    = false;
+        navEl.hidden     = false;
+        loadingEl.hidden = true;
+
+        showStay(nextStayIdx);
+
+      } catch (err) {
+        loadingEl.hidden = true;
+        errorEl.hidden   = false;
+        errorEl.innerHTML = `<div class="error-box"><strong>Could not load stay data</strong><p>${esc(err.message)}</p></div>`;
+        console.error(err);
+      }
+    }
+
+    main();
+  </script>
+</body>
+</html>
