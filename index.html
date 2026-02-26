@@ -397,7 +397,8 @@
 
     function formatDateFull(d) {
       if (!d) return 'Unknown';
-      return `${relativeDate(d)} (${toISO(d)})`;
+      const monthDay = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+      return `${relativeDate(d)} (${monthDay})`;
     }
 
     function formatEur(n) {
@@ -702,9 +703,9 @@
       let cancelHtml = '';
       if (fc) {
         if (fc >= t) {
-          cancelHtml = `<div class="status-badge badge-green">✅ Free cancellation until ${esc(formatDateFull(fc))}</div>`;
+          cancelHtml = `<div class="status-badge badge-green">✅ Free cancellation until ${esc(fc.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }))} (${esc(relativeDate(fc))})</div>`;
         } else {
-          cancelHtml = `<div class="status-badge badge-yellow">⚠️ Free cancellation expired (was ${esc(toISO(fc))})</div>`;
+          cancelHtml = `<div class="status-badge badge-yellow">⚠️ Free cancellation expired (was ${esc(fc.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }))})</div>`;
         }
       } else {
         cancelHtml = `<div class="status-badge badge-red">✗ No free cancellation</div>`;
@@ -716,7 +717,7 @@
         const paid = stay.paymentDate < t;
         paymentHtml = paid
           ? `<span class="status-badge badge-green" style="font-size:0.78rem;padding:0.3rem 0.75rem;">✓ Paid</span>`
-          : `<span class="status-badge badge-yellow" style="font-size:0.78rem;padding:0.3rem 0.75rem;">⏳ Not yet paid &mdash; due ${esc(toISO(stay.paymentDate))}</span>`;
+          : `<span class="status-badge badge-yellow" style="font-size:0.78rem;padding:0.3rem 0.75rem;">⏳ Not yet paid &mdash; due ${esc(stay.paymentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }))}</span>`;
       }
 
       // Laundry / Parking
@@ -811,14 +812,14 @@
                 <div class="date-card-icon">🔑</div>
                 <div class="date-card-label">Check-in</div>
                 <div class="date-card-relative">${esc(relativeDate(stay.from))}</div>
-                <div class="date-card-absolute">${esc(toISO(stay.from))}</div>
+                <div class="date-card-absolute">${esc(stay.from.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }))}</div>
                 ${stay.checkinTime ? `<div class="date-card-time">from ${esc(stay.checkinTime)}</div>` : ''}
               </div>
               <div class="date-card">
                 <div class="date-card-icon">🧳</div>
                 <div class="date-card-label">Check-out</div>
                 <div class="date-card-relative">${esc(relativeDate(stay.until))}</div>
-                <div class="date-card-absolute">${esc(toISO(stay.until))}</div>
+                <div class="date-card-absolute">${esc(stay.until.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }))}</div>
                 ${stay.checkoutTime ? `<div class="date-card-time">by ${esc(stay.checkoutTime)}</div>` : ''}
               </div>
             </div>
@@ -883,12 +884,12 @@
             ${(() => {
               if (laundry.level < 2) {
                 if (!nextWasherStay) return '';
-                return `<div class="next-washer-hint">🧺 Next washer: ${esc(relativeDate(nextWasherStay.from))} (${esc(toISO(nextWasherStay.from))}) in ${esc(nextWasherStay.location)}</div>`;
+                return `<div class="next-washer-hint">🧺 Next washer: ${esc(formatDateFull(nextWasherStay.from))} in ${esc(nextWasherStay.location)}</div>`;
               } else {
                 if (!nextWasherStay) return '';
                 const gapDays = Math.round((nextWasherStay.from - stay.until) / 86400000);
                 if (gapDays <= 0) return `<div class="next-washer-hint">The next stay also has a washer</div>`;
-                return `<div class="next-washer-hint">🧺 ${gapDays} day${gapDays !== 1 ? 's' : ''} without a washer after check-out, until ${esc(nextWasherStay.location)} (${esc(toISO(nextWasherStay.from))})</div>`;
+                return `<div class="next-washer-hint">🧺 ${gapDays} day${gapDays !== 1 ? 's' : ''} without a washer after check-out, until ${esc(nextWasherStay.location)} (${esc(nextWasherStay.from.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }))})</div>`;
               }
             })()}
           </div>
