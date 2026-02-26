@@ -272,6 +272,35 @@
       min-width: 4.5rem; text-align: center;
     }
 
+    /* ── Share button ── */
+    .share-btn {
+      background: rgba(13,148,136,0.18);
+      border-color: rgba(13,148,136,0.45);
+    }
+    .share-btn:hover:not(:disabled) { background: rgba(13,148,136,0.35); }
+
+    /* ── Share toast ── */
+    .share-toast {
+      position: fixed;
+      bottom: 2.25rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(0.6rem);
+      background: #1e3a5f;
+      color: #fff;
+      padding: 0.55rem 1.2rem;
+      border-radius: 20px;
+      font-size: 0.83rem;
+      font-weight: 600;
+      opacity: 0;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      pointer-events: none;
+      z-index: 999;
+    }
+    .share-toast.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
     /* ── Responsive ── */
     @media (max-width: 480px) {
       body { padding: 0.75rem 0.5rem 2rem; }
@@ -293,6 +322,7 @@
       <button class="nav-btn" id="btn-prev">← Previous</button>
       <span class="nav-counter" id="nav-counter"></span>
       <button class="nav-btn" id="btn-next">Next →</button>
+      <button class="nav-btn share-btn" id="btn-share" title="Copy link to this stay">⬆ Share</button>
     </div>
   </div>
 
@@ -353,6 +383,21 @@
       }
       result += esc(s.slice(lastIndex));
       return result;
+    }
+
+    function showToast(msg) {
+      const existing = document.getElementById('share-toast');
+      if (existing) existing.remove();
+      const toast = document.createElement('div');
+      toast.id = 'share-toast';
+      toast.className = 'share-toast';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('visible')));
+      setTimeout(() => {
+        toast.classList.remove('visible');
+        setTimeout(() => toast.remove(), 300);
+      }, 2200);
     }
 
     function parseTimeVal(v) {
@@ -963,6 +1008,12 @@
 
     function showStay(index) {
       currentIdx = index;
+      // Keep the URL in sync so the current stay is always shareable
+      const stayDate = toISO(allStays[index].from);
+      const url = new URL(window.location.href);
+      url.searchParams.set('stay', stayDate);
+      history.replaceState(null, '', url);
+
       previewGen++;
       const gen = previewGen;
 
@@ -1032,12 +1083,43 @@
           if (currentIdx < allStays.length - 1) showStay(currentIdx + 1);
         });
 
+        document.getElementById('btn-share').addEventListener('click', async () => {
+          const shareUrl = window.location.href;
+          const stay = allStays[currentIdx];
+          try {
+            if (navigator.share) {
+              await navigator.share({ title: `Stay in ${stay.location}`, url: shareUrl });
+            } else {
+              await navigator.clipboard.writeText(shareUrl);
+              showToast('Link copied!');
+            }
+          } catch (e) {
+            if (e.name !== 'AbortError') {
+              // navigator.share may not be available or may fail; fall back to clipboard
+              try {
+                await navigator.clipboard.writeText(shareUrl);
+                showToast('Link copied!');
+              } catch (_) {
+                showToast('Could not copy link');
+              }
+            }
+          }
+        });
+
         loadingEl.hidden = false; // keep visible until first render
         cardEl.hidden    = false;
         navEl.hidden     = false;
         loadingEl.hidden = true;
 
-        showStay(nextStayIdx);
+        // Jump to a specific stay via ?stay=YYYY-MM-DD in the URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const stayParam = urlParams.get('stay');
+        let startIdx = nextStayIdx;
+        if (stayParam) {
+          const idx = allStays.findIndex(s => toISO(s.from) === stayParam);
+          if (idx !== -1) startIdx = idx;
+        }
+        showStay(startIdx);
 
       } catch (err) {
         loadingEl.hidden = true;
