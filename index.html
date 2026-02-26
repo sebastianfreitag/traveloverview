@@ -189,6 +189,9 @@
     }
     .amenity-icon { font-size: 1.1rem; margin-bottom: 0.15rem; }
     .amenity-text { font-size: 0.82rem; font-weight: 600; }
+    .next-washer-hint {
+      margin-top: 0.55rem; font-size: 0.8rem; color: #64748b;
+    }
 
     /* ── Text blocks ── */
     .text-block {
@@ -272,7 +275,7 @@
     @media (max-width: 480px) {
       body { padding: 0.75rem 0.5rem 2rem; }
       .card-body { padding: 1.25rem 1.25rem 1.5rem; }
-      .date-grid, .amenities-grid { grid-template-columns: 1fr; }
+      .amenities-grid { grid-template-columns: 1fr; }
       .location-name { font-size: 1.35rem; }
     }
   </style>
@@ -681,7 +684,7 @@
     // ─────────────────────────────────────────────
     // Render
     // ─────────────────────────────────────────────
-    function renderStay(stay, preview, label, prevLocation) {
+    function renderStay(stay, preview, label, prevLocation, nextWasherStay) {
       const t = today();
       const isEur = (stay.currency ?? '').trim().toUpperCase() === 'EUR';
 
@@ -876,6 +879,17 @@
                 <div class="amenity-text">${esc(parking.text)}</div>
               </div>
             </div>
+            ${(() => {
+              if (laundry.level < 2) {
+                if (!nextWasherStay) return '';
+                return `<div class="next-washer-hint">🧺 Next washer: ${esc(relativeDate(nextWasherStay.from))} (${esc(toISO(nextWasherStay.from))}) in ${esc(nextWasherStay.location)}</div>`;
+              } else {
+                if (!nextWasherStay) return '';
+                const gapDays = Math.round((nextWasherStay.from - stay.until) / 86400000);
+                if (gapDays <= 0) return `<div class="next-washer-hint">The next stay also has a washer</div>`;
+                return `<div class="next-washer-hint">🧺 ${gapDays} day${gapDays !== 1 ? 's' : ''} without a washer after check-out, until ${esc(nextWasherStay.location)} (${esc(toISO(nextWasherStay.from))})</div>`;
+              }
+            })()}
           </div>
 
           ${commentHtml}
@@ -955,7 +969,15 @@
       const prev    = index > 0 ? allStays[index - 1] : null;
       const total   = allStays.length;
 
-      cardEl.innerHTML = renderStay(stay, null, getStayLabel(index), prev?.location ?? null);
+      let nextWasherStay = null;
+      for (let i = index + 1; i < allStays.length; i++) {
+        if (parseLaundry(allStays[i].laundry).level >= 2) {
+          nextWasherStay = allStays[i];
+          break;
+        }
+      }
+
+      cardEl.innerHTML = renderStay(stay, null, getStayLabel(index), prev?.location ?? null, nextWasherStay);
 
       document.getElementById('btn-prev').disabled    = index === 0;
       document.getElementById('btn-next').disabled    = index === total - 1;
