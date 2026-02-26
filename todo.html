@@ -490,14 +490,19 @@
     showToast(`„${taskName}" → „${newLabel}"`);
 
     try {
+      const payload = { sheetRow, newStatus: newSheetValue };
+      console.log('[cycleStatus] sending', payload);
       const res = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
         // text/plain avoids a CORS preflight (Apps Script doesn't handle OPTIONS)
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ sheetRow, newStatus: newSheetValue }),
+        body: JSON.stringify(payload),
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || json.ok === false) throw new Error(`HTTP ${res.status}`);
+      const raw = await res.text();
+      console.log('[cycleStatus] response', res.status, raw);
+      let json = {};
+      try { json = JSON.parse(raw); } catch (_) {}
+      if (!res.ok || json.ok === false) throw new Error(`HTTP ${res.status}: ${raw}`);
     } catch (err) {
       allRows[rowIdx] = { ...row, status: oldStatus };
       showToast(`Fehler – „${taskName}" nicht gespeichert`, 'error');
