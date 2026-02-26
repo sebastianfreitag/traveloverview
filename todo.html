@@ -192,6 +192,7 @@
     .task-item.dl-asap        { border-left: 3px solid #ef4444; }
     .task-item.dl-vor-umzug   { border-left: 3px solid #f97316; }
     .task-item.dl-kurz-umzug  { border-left: 3px solid #eab308; }
+    .task-item.dl-spat        { border-left: 3px solid #22c55e; }
     .task-item.dl-in-d        { border-left: 3px solid #0d9488; }
     .task-item.dl-none        { border-left: 3px solid transparent; }
 
@@ -263,6 +264,7 @@
     .dl-badge-asap       { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
     .dl-badge-vor-umzug  { background: #ffedd5; border-color: #fdba74; color: #9a3412; }
     .dl-badge-kurz-umzug { background: #fef9c3; border-color: #fde047; color: #854d0e; }
+    .dl-badge-spat       { background: #dcfce7; border-color: #86efac; color: #166534; }
     .dl-badge-in-d       { background: #ccfbf1; border-color: #5eead4; color: #0f5c53; }
 
     /* ── Empty state ── */
@@ -334,7 +336,8 @@
     'asap':            { label: 'ASAP',            barCls: 'dl-asap',       badgeCls: 'dl-badge-asap',       order: 0 },
     'vor umzug':       { label: 'vor Umzug',       barCls: 'dl-vor-umzug',  badgeCls: 'dl-badge-vor-umzug',  order: 1 },
     'kurz vor umzug':  { label: 'kurz vor Umzug',  barCls: 'dl-kurz-umzug', badgeCls: 'dl-badge-kurz-umzug', order: 2 },
-    'in d':            { label: 'in D.',            barCls: 'dl-in-d',       badgeCls: 'dl-badge-in-d',       order: 3 },
+    'spät':            { label: 'spät',             barCls: 'dl-spat',       badgeCls: 'dl-badge-spat',       order: 3 },
+    'in d':            { label: 'in D.',            barCls: 'dl-in-d',       badgeCls: 'dl-badge-in-d',       order: 4 },
   };
   function deadlineKey(s) {
     if (!s) return null;
