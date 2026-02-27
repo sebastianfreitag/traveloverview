@@ -365,7 +365,7 @@
   // What value gets written to the sheet for each status key
   const STATUS_SHEET_VALUE = {
     todo:   'To Do',
-    inprog: 'In progress',
+    inprog: 'In Progress',
     almost: 'Almost done',
     done:   'Done',
   };
@@ -490,14 +490,12 @@
     showToast(`„${taskName}" → „${newLabel}"`);
 
     try {
-      const res = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        // text/plain avoids a CORS preflight (Apps Script doesn't handle OPTIONS)
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ sheetRow, newStatus: newSheetValue }),
-      });
+      const url = new URL(APPS_SCRIPT_URL);
+      url.searchParams.set('sheetRow', sheetRow);
+      url.searchParams.set('newStatus', newSheetValue);
+      const res = await fetch(url.toString());
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || json.ok === false) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok || !json.ok) throw new Error(`HTTP ${res.status}`);
     } catch (err) {
       allRows[rowIdx] = { ...row, status: oldStatus };
       showToast(`Fehler – „${taskName}" nicht gespeichert`, 'error');
@@ -535,7 +533,7 @@
         status:   g(2).trim(),
         deadline: g(3).trim(),
         details:  g(4).trim(),
-        sheetRow: i + 2,   // gviz rows are 0-indexed data rows; row 1 = header → +2
+        sheetRow: i + 1,   // gviz table.rows includes the header at index 0 → +1
       });
     }
     return rows;
