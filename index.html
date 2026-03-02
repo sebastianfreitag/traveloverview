@@ -510,6 +510,7 @@
       const v = raw.trim().toLowerCase();
       if (v === 'no')               return { level: 0, icon: '✗',  text: 'No laundry' };
       if (v.includes('laundromat')) return { level: 1, icon: '🏪', text: raw.trim() };
+      if (v.includes('shared'))     return { level: 1, icon: '🧺', text: raw.trim() };
       if (v === 'w+d')              return { level: 3, icon: '✨',  text: 'Washer + Dryer' };
       if (v === 'w' || v === 'washer') return { level: 2, icon: '🧺', text: 'Washer (no dryer)' };
       return { level: -1, icon: '❓', text: raw.trim() };
