@@ -281,6 +281,32 @@
     }
     .share-btn:hover:not(:disabled) { background: rgba(13,148,136,0.35); }
 
+    /* ── Jump dropdown ── */
+    .jump-bar {
+      margin-top: 0.55rem;
+      display: flex;
+      justify-content: center;
+    }
+    .stay-jump-select {
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.25);
+      color: #fff;
+      border-radius: 9px;
+      padding: 0.42rem 2rem 0.42rem 0.85rem;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      width: 100%;
+      max-width: 340px;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(255,255,255,0.6)' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.75rem center;
+      transition: background-color 0.15s, border-color 0.15s;
+    }
+    .stay-jump-select:hover { background-color: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.4); }
+    .stay-jump-select option { background: #302b63; color: #fff; }
+
     /* ── Share toast ── */
     .share-toast {
       position: fixed;
@@ -325,6 +351,9 @@
       <span class="nav-counter" id="nav-counter"></span>
       <button class="nav-btn" id="btn-next">Next →</button>
       <button class="nav-btn share-btn" id="btn-share" aria-label="Share this stay" title="Share this stay"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>
+    </div>
+    <div class="jump-bar" id="jump-bar" hidden>
+      <select id="stay-jump" class="stay-jump-select" aria-label="Jump to stay"></select>
     </div>
   </div>
 
@@ -1037,6 +1066,8 @@
       document.getElementById('btn-prev').disabled    = index === 0;
       document.getElementById('btn-next').disabled    = index === total - 1;
       document.getElementById('nav-counter').textContent = `${index + 1} / ${total}`;
+      const jumpEl = document.getElementById('stay-jump');
+      if (jumpEl) jumpEl.value = String(index);
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -1077,6 +1108,21 @@
         if (!allStays.length) throw new Error('No stays found in the spreadsheet.');
 
         nextStayIdx = findNextStayIndex(allStays);
+
+        // Populate jump dropdown
+        const jumpEl  = document.getElementById('stay-jump');
+        const jumpBar = document.getElementById('jump-bar');
+        allStays.forEach((stay, i) => {
+          const opt = document.createElement('option');
+          opt.value = String(i);
+          const monthDay = stay.from.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          const label = getStayLabel(i);
+          const prefix = label === 'Current Stay' ? '▶ ' : label === 'Next Stay' ? '★ ' : '';
+          opt.textContent = `${prefix}${stay.location} · ${monthDay}`;
+          jumpEl.appendChild(opt);
+        });
+        jumpEl.addEventListener('change', () => showStay(Number(jumpEl.value)));
+        jumpBar.hidden = false;
 
         document.getElementById('btn-prev').addEventListener('click', () => {
           if (currentIdx > 0) showStay(currentIdx - 1);
