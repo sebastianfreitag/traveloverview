@@ -363,6 +363,7 @@
     // ─────────────────────────────────────────────
     const SHEET_ID = '16S-YbYNYvdjFLqSBVM01j0BgpWe57u2Bo1407IqnJx0';
     const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
+    const GAP_EXPECTED_EUR_PER_NIGHT = 115;
 
     // ─────────────────────────────────────────────
     // Utilities
@@ -582,20 +583,58 @@
           address:         g(20) ?? '',
         });
       }
+      stays.sort((a, b) => (a.from - b.from) || (a.until - b.until));
       return stays;
     }
 
     // ─────────────────────────────────────────────
-    // Find index of "next" stay
-    // Logic: first stay where until > today (ongoing or upcoming).
-    // If all past: return last index.
+    // Build a timeline consisting of booked stays plus computed unbooked gaps.
     // ─────────────────────────────────────────────
-    function findNextStayIndex(stays) {
-      const t = today();
+    function buildTravelOverviewEntries(stays) {
+      const entries = [];
       for (let i = 0; i < stays.length; i++) {
-        if (stays[i].until > t) return i;
+        const stay = stays[i];
+        entries.push({
+          type: 'stay',
+          stayIndex: i,
+          stay,
+          from: stay.from,
+          until: stay.until,
+        });
+        if (i === stays.length - 1) continue;
+        const nextStay = stays[i + 1];
+        const gapNights = Math.round((nextStay.from - stay.until) / 86400000);
+        if (gapNights > 0) {
+          entries.push({
+            type: 'gap',
+            fromStayIndex: i,
+            toStayIndex: i + 1,
+            fromLocation: stay.location,
+            toLocation: nextStay.location,
+            from: stay.until,
+            until: nextStay.from,
+            nights: gapNights,
+          });
+        }
       }
-      return stays.length - 1;
+      return entries;
+    }
+
+    function findNextEntryIndex(entries) {
+      const t = today();
+      for (let i = 0; i < entries.length; i++) {
+        if (entries[i].until > t) return i;
+      }
+      return entries.length - 1;
+    }
+
+    function getEntryId(entry) {
+      if (entry.type === 'stay') return `stay-${toISO(entry.stay.from)}`;
+      return `gap-${toISO(entry.from)}-${toISO(entry.until)}`;
+    }
+
+    function findEntryIndexById(entries, id) {
+      return entries.findIndex(entry => getEntryId(entry) === id);
     }
 
     // ─────────────────────────────────────────────
@@ -978,21 +1017,97 @@
         </div>`;
     }
 
+    function renderGap(gap, label) {
+      const t = today();
+      const totalNights = gap.nights ?? Math.round((gap.until - gap.from) / 86400000);
+      const notStarted  = t < gap.from;
+      const isCompleted = t >= gap.until;
+      const elapsed     = notStarted ? 0 : Math.max(0, Math.min(totalNights, Math.round((t - gap.from) / 86400000)));
+      const remaining   = isCompleted ? 0 : notStarted ? totalNights : Math.max(0, Math.round((gap.until - t) / 86400000));
+      const pct         = totalNights > 0 ? (elapsed / totalNights) * 100 : 0;
+      const expectedTotal = GAP_EXPECTED_EUR_PER_NIGHT * totalNights;
+      const fromLabel = gap.fromLocation ?? 'Previous stay';
+      const toLabel = gap.toLocation ?? 'Next stay';
+
+      return `
+        <div class="card-header" id="card-header">
+          <div class="card-header-bg" id="header-bg"></div>
+          <div class="card-header-overlay"></div>
+          <div class="card-header-content">
+            <div class="header-text">
+              <div class="next-stay-label">${esc(label ?? 'Gap')}</div>
+              <div class="location-name">${esc(`${fromLabel} -> ${toLabel}`)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="section">
+            <div class="section-title">Dates</div>
+            <div class="date-grid">
+              <div class="date-card">
+                <div class="date-card-icon">📅</div>
+                <div class="date-card-label">Start date</div>
+                <div class="date-card-relative">${esc(relativeDate(gap.from))}</div>
+                <div class="date-card-absolute">${esc(gap.from.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }))}</div>
+              </div>
+              <div class="date-card">
+                <div class="date-card-icon">📅</div>
+                <div class="date-card-label">End date</div>
+                <div class="date-card-relative">${esc(relativeDate(gap.until))}</div>
+                <div class="date-card-absolute">${esc(gap.until.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }))}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Duration</div>
+            <div class="nights-row">
+              <span class="nights-num">${totalNights}</span>
+              <span class="nights-suffix">night${totalNights !== 1 ? 's' : ''} total</span>
+              ${isCompleted
+                ? `<span style="color:#94a3b8;margin:0 0.15rem;">·</span><span class="nights-remaining-suffix">completed</span>`
+                : notStarted
+                  ? `<span style="color:#94a3b8;margin:0 0.15rem;">·</span><span class="nights-remaining-suffix">not started yet</span>`
+                  : `<span style="color:#94a3b8;margin:0 0.15rem;">·</span><span class="nights-remaining">${remaining}</span><span class="nights-remaining-suffix">&nbsp;remaining</span>`}
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width:${pct.toFixed(1)}%"></div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Expected Price</div>
+            <div class="price-main">
+              <span class="price-eur">${esc(formatEur(expectedTotal))}</span>
+            </div>
+            <div class="price-per-night"><span class="price-pn-amount">${esc(formatEur(GAP_EXPECTED_EUR_PER_NIGHT))}</span> per night assumption</div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Overview</div>
+            <div class="text-block">No booking exists for this period yet. This gap is between ${esc(fromLabel)} and ${esc(toLabel)}.</div>
+          </div>
+        </div>`;
+    }
+
     // ─────────────────────────────────────────────
     // Navigation state
     // ─────────────────────────────────────────────
-    let allStays    = [];
-    let nextStayIdx = 0;
-    let currentIdx  = 0;
-    let previewGen  = 0;  // incremented on each navigation to cancel stale previews
+    let allStays     = [];
+    let allEntries   = [];
+    let nextEntryIdx = 0;
+    let currentIdx   = 0;
+    let previewGen   = 0;  // incremented on each navigation to cancel stale previews
 
-    function getStayLabel(index) {
-      const t    = today();
-      const stay = allStays[index];
-      if (t >= stay.until)  return 'Past Stay';
-      if (t >= stay.from)   return 'Current Stay';
-      if (index === nextStayIdx) return 'Next Stay';
-      return 'Upcoming Stay';
+    function getEntryLabel(index) {
+      const t = today();
+      const entry = allEntries[index];
+      const kind = entry.type === 'gap' ? 'Gap' : 'Stay';
+      if (t >= entry.until) return `Past ${kind}`;
+      if (t >= entry.from) return `Current ${kind}`;
+      if (index === nextEntryIdx) return `Next ${kind}`;
+      return `Upcoming ${kind}`;
     }
 
     function applyHeaderImage(imgUrl) {
@@ -1038,64 +1153,75 @@
       applyHeaderImage(preview.image);
     }
 
-    function showStay(index) {
+    function showEntry(index) {
       currentIdx = index;
-      // Keep the URL in sync so the current stay is always shareable
-      const stayDate = toISO(allStays[index].from);
+      const entry = allEntries[index];
+
+      // Keep the URL in sync so the current entry is always shareable.
       const url = new URL(window.location.href);
-      url.searchParams.set('stay', stayDate);
+      url.searchParams.set('entry', getEntryId(entry));
+      if (entry.type === 'stay') {
+        url.searchParams.set('stay', toISO(entry.stay.from));
+      } else {
+        url.searchParams.delete('stay');
+      }
       history.replaceState(null, '', url);
 
       previewGen++;
       const gen = previewGen;
 
-      const cardEl  = document.getElementById('stay-card');
-      const stay    = allStays[index];
-      const prev    = index > 0 ? allStays[index - 1] : null;
-      const total   = allStays.length;
+      const cardEl = document.getElementById('stay-card');
+      const total = allEntries.length;
 
-      let nextWasherStay = null;
-      for (let i = index + 1; i < allStays.length; i++) {
-        if (parseLaundry(allStays[i].laundry).level >= 2) {
-          nextWasherStay = allStays[i];
-          break;
+      if (entry.type === 'stay') {
+        const stay = entry.stay;
+        const stayIdx = entry.stayIndex;
+        const prev = stayIdx > 0 ? allStays[stayIdx - 1] : null;
+
+        let nextWasherStay = null;
+        for (let i = stayIdx + 1; i < allStays.length; i++) {
+          if (parseLaundry(allStays[i].laundry).level >= 2) {
+            nextWasherStay = allStays[i];
+            break;
+          }
         }
+
+        cardEl.innerHTML = renderStay(stay, null, getEntryLabel(index), prev?.location ?? null, nextWasherStay);
+
+        if (stay.link) {
+          fetchPreview(stay.link).then(preview => {
+            if (gen !== previewGen || !preview) return;
+            applyPreviewToDom(preview);
+          });
+        }
+
+        if (prev) {
+          fetchDrivingInfo(prev.address || prev.location, stay.address || stay.location).then(info => {
+            if (gen !== previewGen) return;
+            const el = document.getElementById('travel-info');
+            if (!el) return;
+            if (info) {
+              el.className = 'travel-info';
+              el.textContent = `Drive: ${info.distance} - ${info.duration} from ${prev.location}`;
+            } else {
+              el.className = 'travel-info travel-info-calculating';
+              el.textContent = 'Travel time unavailable';
+            }
+          });
+        }
+      } else {
+        cardEl.innerHTML = renderGap(entry, getEntryLabel(index));
       }
 
-      cardEl.innerHTML = renderStay(stay, null, getStayLabel(index), prev?.location ?? null, nextWasherStay);
-
-      document.getElementById('btn-prev').disabled    = index === 0;
-      document.getElementById('btn-next').disabled    = index === total - 1;
+      document.getElementById('btn-prev').disabled = index === 0;
+      document.getElementById('btn-next').disabled = index === total - 1;
       document.getElementById('nav-counter').textContent = `${index + 1} / ${total}`;
       const jumpEl = document.getElementById('stay-jump');
       if (jumpEl) jumpEl.value = String(index);
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
-
-      if (stay.link) {
-        fetchPreview(stay.link).then(preview => {
-          if (gen !== previewGen || !preview) return;
-          applyPreviewToDom(preview);
-        });
-      }
-
-      if (prev) {
-        fetchDrivingInfo(prev.address || prev.location, stay.address || stay.location).then(info => {
-          if (gen !== previewGen) return;
-          const el = document.getElementById('travel-info');
-          if (!el) return;
-          if (info) {
-            el.className = 'travel-info';
-            el.textContent = `🚗 ${info.distance} · ${info.duration} by car from ${prev.location}`;
-          } else {
-            el.className = 'travel-info travel-info-calculating';
-            el.textContent = 'Travel time unavailable';
-          }
-        });
-      }
     }
 
-    // ─────────────────────────────────────────────
     // Main
     // ─────────────────────────────────────────────
     async function main() {
@@ -1108,36 +1234,47 @@
         allStays = await fetchStays();
         if (!allStays.length) throw new Error('No stays found in the spreadsheet.');
 
-        nextStayIdx = findNextStayIndex(allStays);
+        allEntries = buildTravelOverviewEntries(allStays);
+        nextEntryIdx = findNextEntryIndex(allEntries);
 
         // Populate jump dropdown
         const jumpEl  = document.getElementById('stay-jump');
         const jumpBar = document.getElementById('jump-bar');
-        allStays.forEach((stay, i) => {
+        allEntries.forEach((entry, i) => {
           const opt = document.createElement('option');
           opt.value = String(i);
-          const monthDay = stay.from.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-          const label = getStayLabel(i);
-          const prefix = label === 'Current Stay' ? '▶ ' : label === 'Next Stay' ? '★ ' : '';
-          opt.textContent = `${prefix}${stay.location} · ${monthDay}`;
+          const label = getEntryLabel(i);
+          const prefix = label.startsWith('Current') ? '▶ ' : label.startsWith('Next') ? '★ ' : '';
+          if (entry.type === 'stay') {
+            const stay = entry.stay;
+            const monthDay = stay.from.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            opt.textContent = `${prefix}${stay.location} · ${monthDay}`;
+          } else {
+            const fromMonthDay = entry.from.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const untilMonthDay = entry.until.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            opt.textContent = `${prefix}Gap: ${entry.fromLocation} -> ${entry.toLocation} · ${fromMonthDay} - ${untilMonthDay}`;
+          }
           jumpEl.appendChild(opt);
         });
-        jumpEl.addEventListener('change', () => showStay(Number(jumpEl.value)));
+        jumpEl.addEventListener('change', () => showEntry(Number(jumpEl.value)));
         jumpBar.hidden = false;
 
         document.getElementById('btn-prev').addEventListener('click', () => {
-          if (currentIdx > 0) showStay(currentIdx - 1);
+          if (currentIdx > 0) showEntry(currentIdx - 1);
         });
         document.getElementById('btn-next').addEventListener('click', () => {
-          if (currentIdx < allStays.length - 1) showStay(currentIdx + 1);
+          if (currentIdx < allEntries.length - 1) showEntry(currentIdx + 1);
         });
 
         document.getElementById('btn-share').addEventListener('click', async () => {
           const shareUrl = window.location.href;
-          const stay = allStays[currentIdx];
+          const entry = allEntries[currentIdx];
+          const shareTitle = entry.type === 'stay'
+            ? `Stay in ${entry.stay.location}`
+            : `Gap from ${entry.fromLocation} to ${entry.toLocation}`;
           try {
             if (navigator.share) {
-              await navigator.share({ title: `Stay in ${stay.location}`, url: shareUrl });
+              await navigator.share({ title: shareTitle, url: shareUrl });
             } else {
               await navigator.clipboard.writeText(shareUrl);
               showToast('Link copied!');
@@ -1160,18 +1297,26 @@
         navEl.hidden     = false;
         loadingEl.hidden = true;
 
-        // Jump to a specific stay via ?stay=YYYY-MM-DD in the URL
+        // Jump to a specific entry via ?entry=...
+        // Backward compatible: ?stay=YYYY-MM-DD still resolves to a stay entry.
         const urlParams = new URLSearchParams(window.location.search);
+        const entryParam = urlParams.get('entry');
         const stayParam = urlParams.get('stay');
-        let startIdx = nextStayIdx;
-        if (stayParam) {
+        let startIdx = nextEntryIdx;
+        if (entryParam) {
+          const entryIdx = findEntryIndexById(allEntries, entryParam);
+          if (entryIdx !== -1) startIdx = entryIdx;
+        } else if (stayParam) {
           const paramDate = parseDateVal(stayParam);
           if (paramDate) {
-            const idx = allStays.findIndex(s => s.from <= paramDate && paramDate < s.until);
-            if (idx !== -1) startIdx = idx;
+            const stayIdx = allStays.findIndex(s => s.from <= paramDate && paramDate < s.until);
+            if (stayIdx !== -1) {
+              const entryIdx = allEntries.findIndex(e => e.type === 'stay' && e.stayIndex === stayIdx);
+              if (entryIdx !== -1) startIdx = entryIdx;
+            }
           }
         }
-        showStay(startIdx);
+        showEntry(startIdx);
 
       } catch (err) {
         loadingEl.hidden = true;
