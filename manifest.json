@@ -1,0 +1,28 @@
+{
+  "name": "Travel Overview",
+  "short_name": "Travel",
+  "description": "View and navigate your travel stays",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0c29",
+  "theme_color": "#302b63",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["travel", "lifestyle"],
+  "shortcuts": [
+    {
+      "name": "Todo",
+      "short_name": "Todo",
+      "description": "View todo list",
+      "url": "./todo.html"
+    }
+  ]
+}
